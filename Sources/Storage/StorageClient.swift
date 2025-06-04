@@ -344,7 +344,7 @@ public final class StorageClient {
         }
     }
     
-    /// Get public file view URL (for public buckets)
+    /// Get public file view URL (for public buckets) - matches JS SDK getPublicFileViewInfo
     /// - Parameter fileId: File ID
     /// - Returns: Public view URL
     /// - Throws: SelfDB errors
@@ -361,6 +361,46 @@ public final class StorageClient {
                 message: "Failed to get public view URL: \(error.localizedDescription)",
                 code: "PUBLIC_VIEW_URL_ERROR",
                 suggestion: "Check the file ID and ensure it's in a public bucket"
+            )
+        }
+    }
+    
+    /// Get public file view info (for public buckets) - matches JS SDK getPublicFileViewInfo
+    /// - Parameter fileId: File ID
+    /// - Returns: FileViewInfoResponse with metadata and view URL
+    /// - Throws: SelfDB errors
+    public func getPublicFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/files/public/\(fileId)/view-info"
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get public file view info: \(error.localizedDescription)",
+                code: "PUBLIC_VIEW_URL_ERROR",
+                suggestion: "Check the file ID and ensure it's in a public bucket"
+            )
+        }
+    }
+    
+    /// Get file view info (authenticated) - matches JS SDK getFileViewInfo
+    /// - Parameter fileId: File ID
+    /// - Returns: FileViewInfoResponse with metadata and view URL
+    /// - Throws: SelfDB errors
+    public func getFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/files/\(fileId)/view-info"
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get file view info: \(error.localizedDescription)",
+                code: "VIEW_URL_ERROR",
+                suggestion: "Check the file ID and permissions"
             )
         }
     }
