@@ -7,5 +7,9 @@ DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
 
-#/Auhth.MD
-#/Tables.MD
+/Auhth.MD
+/Tables.MD
+/CLAUDE.md
+/Storage.MD
+/APPTABLES.MD
+selfd-swift/

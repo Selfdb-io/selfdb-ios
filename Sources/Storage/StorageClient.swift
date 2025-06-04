@@ -18,13 +18,13 @@ public final class StorageClient {
     // MARK: - Bucket Operations
     
     /// List all buckets
-    /// - Returns: Array of buckets
+    /// - Returns: Array of buckets with stats
     /// - Throws: SelfDB errors
     public func listBuckets() async throws -> [Bucket] {
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .GET,
-                path: "/api/v1/storage/buckets"
+                path: "/api/v1/buckets"
             )
         } catch {
             if error is SelfDBError { throw error }
@@ -44,7 +44,7 @@ public final class StorageClient {
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .POST,
-                path: "/api/v1/storage/buckets",
+                path: "/api/v1/buckets",
                 body: request
             )
         } catch {
@@ -65,7 +65,7 @@ public final class StorageClient {
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .GET,
-                path: "/api/v1/storage/buckets/\(bucketId)"
+                path: "/api/v1/buckets/\(bucketId)"
             )
         } catch {
             if error is SelfDBError { throw error }
@@ -87,7 +87,7 @@ public final class StorageClient {
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .PUT,
-                path: "/api/v1/storage/buckets/\(bucketId)",
+                path: "/api/v1/buckets/\(bucketId)",
                 body: request
             )
         } catch {
@@ -108,7 +108,7 @@ public final class StorageClient {
         do {
             let _: EmptyResponse = try await authClient.makeAuthenticatedRequest(
                 method: .DELETE,
-                path: "/api/v1/storage/buckets/\(bucketId)"
+                path: "/api/v1/buckets/\(bucketId)"
             )
             return true
         } catch {
@@ -123,16 +123,16 @@ public final class StorageClient {
     
     /// Find bucket by name
     /// - Parameter name: Bucket name
-    /// - Returns: Bucket ID, or nil if not found
+    /// - Returns: Bucket, or nil if not found
     /// - Throws: SelfDB errors
-    public func findBucketByName(_ name: String) async throws -> String? {
+    public func findBucketByName(_ name: String) async throws -> Bucket? {
         let buckets = try await listBuckets()
-        return buckets.first { $0.name == name }?.id
+        return buckets.first { $0.name == name }
     }
     
     // MARK: - File Operations
     
-    /// Upload a file to a bucket
+    /// Upload a file to a bucket using presigned URL approach
     /// - Parameters:
     ///   - bucketName: Name of the bucket
     ///   - fileData: File data to upload
@@ -145,9 +145,9 @@ public final class StorageClient {
         file fileData: Data,
         filename: String,
         options: UploadFileOptions = UploadFileOptions()
-    ) async throws -> FileUploadResponse {
+    ) async throws -> FileMetadata {
         // Find bucket by name
-        guard let bucketId = try await findBucketByName(bucketName) else {
+        guard let bucket = try await findBucketByName(bucketName) else {
             throw SelfDBError(
                 message: "Bucket '\(bucketName)' not found",
                 code: "BUCKET_NOT_FOUND",
@@ -156,66 +156,51 @@ public final class StorageClient {
         }
         
         return try await uploadToBucket(
-            bucketId: bucketId,
+            bucketId: bucket.id,
             fileData: fileData,
             filename: filename,
             options: options
         )
     }
     
-    /// Upload a file to a bucket by ID
+    /// Upload a file to a bucket by ID using presigned URL approach
     /// - Parameters:
     ///   - bucketId: Bucket ID
     ///   - fileData: File data to upload
     ///   - filename: Name for the file
     ///   - options: Upload options
-    /// - Returns: Upload response
+    /// - Returns: File metadata
     /// - Throws: SelfDB errors
     public func uploadToBucket(
         bucketId: String,
         fileData: Data,
         filename: String,
         options: UploadFileOptions = UploadFileOptions()
-    ) async throws -> FileUploadResponse {
+    ) async throws -> FileMetadata {
         do {
-            // Create multipart form data
-            let boundary = UUID().uuidString
-            let httpBody = createMultipartBody(
-                fileData: fileData,
+            // Step 1: Initiate upload to get presigned URL
+            let initiateRequest = FileUploadInitiateRequest(
                 filename: filename,
-                boundary: boundary,
+                contentType: options.contentType,
+                size: fileData.count,
+                bucketId: bucketId
+            )
+            
+            let initiateResponse: FileUploadInitiateResponse = try await authClient.makeAuthenticatedRequest(
+                method: .POST,
+                path: "/api/v1/files/initiate-upload",
+                body: initiateRequest
+            )
+            
+            // Step 2: Upload file to presigned URL
+            try await uploadToPresignedUrl(
+                presignedInfo: initiateResponse.presignedUploadInfo,
+                fileData: fileData,
                 contentType: options.contentType
             )
             
-            var headers = authClient.getAuthHeaders()
-            headers["Content-Type"] = "multipart/form-data; boundary=\(boundary)"
-            
-            // Make request directly with URLSession for multipart upload
-            let config = try Config.getInstance()
-            let url = URL(string: "\(config.storageUrl)/api/v1/storage/buckets/\(bucketId)/files")!
-            
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.httpBody = httpBody
-            
-            for (key, value) in headers {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
-            
-            let session = URLSession.shared
-            let (data, response) = try await session.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NetworkError("Invalid response received")
-            }
-            
-            if httpResponse.statusCode >= 400 {
-                throw ApiError("Upload failed", status: httpResponse.statusCode)
-            }
-            
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(FileUploadResponse.self, from: data)
+            // Return the file metadata
+            return initiateResponse.fileMetadata
             
         } catch {
             if error is SelfDBError { throw error }
@@ -224,6 +209,40 @@ public final class StorageClient {
                 code: "UPLOAD_ERROR",
                 suggestion: "Check your file and bucket permissions"
             )
+        }
+    }
+    
+    /// Upload file data to presigned URL
+    private func uploadToPresignedUrl(
+        presignedInfo: PresignedUploadInfo,
+        fileData: Data,
+        contentType: String?
+    ) async throws {
+        guard let url = URL(string: presignedInfo.uploadUrl) else {
+            throw SelfDBError(
+                message: "Invalid presigned URL",
+                code: "INVALID_URL",
+                suggestion: "Contact support if this persists"
+            )
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = presignedInfo.uploadMethod
+        request.httpBody = fileData
+        
+        if let contentType = contentType {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
+        
+        let session = URLSession.shared
+        let (_, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError("Invalid response received")
+        }
+        
+        if httpResponse.statusCode >= 400 {
+            throw ApiError("Presigned upload failed", status: httpResponse.statusCode)
         }
     }
     
@@ -241,15 +260,11 @@ public final class StorageClient {
         }
         
         if let offset = options.offset {
-            params["offset"] = String(offset)
-        }
-        
-        if let search = options.search {
-            params["search"] = search
+            params["skip"] = String(offset)
         }
         
         let queryString = params.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-        let path = "/api/v1/storage/buckets/\(bucketId)/files" + (queryString.isEmpty ? "" : "?\(queryString)")
+        let path = "/api/v1/buckets/\(bucketId)/files" + (queryString.isEmpty ? "" : "?\(queryString)")
         
         do {
             return try await authClient.makeAuthenticatedRequest(
@@ -274,7 +289,7 @@ public final class StorageClient {
         do {
             let _: EmptyResponse = try await authClient.makeAuthenticatedRequest(
                 method: .DELETE,
-                path: "/api/v1/storage/files/\(fileId)"
+                path: "/api/v1/files/\(fileId)"
             )
             return true
         } catch {
@@ -288,67 +303,65 @@ public final class StorageClient {
     }
     
     /// Get file download URL
-    /// - Parameters:
-    ///   - bucketName: Bucket name
-    ///   - fileId: File ID
+    /// - Parameter fileId: File ID
     /// - Returns: Download URL
     /// - Throws: SelfDB errors
-    public func getUrl(bucket bucketName: String, fileId: String) async throws -> String {
-        guard let bucketId = try await findBucketByName(bucketName) else {
-            throw SelfDBError(
-                message: "Bucket '\(bucketName)' not found",
-                code: "BUCKET_NOT_FOUND",
-                suggestion: "Check the bucket name"
-            )
-        }
-        
-        return try await getFileUrl(bucketId: bucketId, fileId: fileId)
-    }
-    
-    /// Get file download URL by bucket ID
-    /// - Parameters:
-    ///   - bucketId: Bucket ID
-    ///   - fileId: File ID
-    /// - Returns: Download URL
-    /// - Throws: SelfDB errors
-    public func getFileUrl(bucketId: String, fileId: String) async throws -> String {
+    public func getDownloadUrl(fileId: String) async throws -> String {
         do {
             let response: FileDownloadInfoResponse = try await authClient.makeAuthenticatedRequest(
                 method: .GET,
-                path: "/api/v1/storage/buckets/\(bucketId)/files/\(fileId)/download"
+                path: "/api/v1/files/\(fileId)/download-info"
             )
             return response.downloadUrl
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
-                message: "Failed to get file URL: \(error.localizedDescription)",
-                code: "URL_ERROR",
-                suggestion: "Check the file ID and bucket ID"
+                message: "Failed to get download URL: \(error.localizedDescription)",
+                code: "DOWNLOAD_URL_ERROR",
+                suggestion: "Check the file ID and permissions"
             )
         }
     }
     
-    // MARK: - Helper Methods
+    /// Get file view URL
+    /// - Parameter fileId: File ID
+    /// - Returns: View URL
+    /// - Throws: SelfDB errors
+    public func getViewUrl(fileId: String) async throws -> String {
+        do {
+            let response: FileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/files/\(fileId)/view-info"
+            )
+            return response.viewUrl
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get view URL: \(error.localizedDescription)",
+                code: "VIEW_URL_ERROR",
+                suggestion: "Check the file ID and permissions"
+            )
+        }
+    }
     
-    /// Create multipart form data for file upload
-    private func createMultipartBody(
-        fileData: Data,
-        filename: String,
-        boundary: String,
-        contentType: String?
-    ) -> Data {
-        var body = Data()
-        
-        // Add file field
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: \(contentType ?? "application/octet-stream")\r\n\r\n".data(using: .utf8)!)
-        body.append(fileData)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // End boundary
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
-        return body
+    /// Get public file view URL (for public buckets)
+    /// - Parameter fileId: File ID
+    /// - Returns: Public view URL
+    /// - Throws: SelfDB errors
+    public func getPublicViewUrl(fileId: String) async throws -> String {
+        do {
+            let response: FileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/files/public/\(fileId)/view-info"
+            )
+            return response.viewUrl
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get public view URL: \(error.localizedDescription)",
+                code: "PUBLIC_VIEW_URL_ERROR",
+                suggestion: "Check the file ID and ensure it's in a public bucket"
+            )
+        }
     }
 }

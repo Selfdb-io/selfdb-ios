@@ -1,15 +1,19 @@
 import Foundation
 import Core
 
-/// Bucket model
+/// Bucket model - matches backend BucketWithStats
 public struct Bucket: Codable, Identifiable {
     public let id: String
     public let name: String
     public let isPublic: Bool
     public let description: String?
-    public let createdAt: Date
-    public let updatedAt: Date
-    public let userId: String
+    public let createdAt: String
+    public let updatedAt: String
+    public let ownerId: String
+    
+    // Stats fields
+    public let fileCount: Int?
+    public let totalSize: Int?
     
     private enum CodingKeys: String, CodingKey {
         case id
@@ -18,7 +22,9 @@ public struct Bucket: Codable, Identifiable {
         case description
         case createdAt = "created_at"
         case updatedAt = "updated_at"
-        case userId = "user_id"
+        case ownerId = "owner_id"
+        case fileCount = "file_count"
+        case totalSize = "total_size"
     }
 }
 
@@ -60,28 +66,30 @@ public struct UpdateBucketRequest: Codable {
     }
 }
 
-/// File metadata model
+/// File metadata model - matches backend File schema
 public struct FileMetadata: Codable, Identifiable {
     public let id: String
     public let filename: String
-    public let contentType: String
+    public let objectName: String
+    public let bucketName: String
+    public let contentType: String?
     public let size: Int
     public let bucketId: String
-    public let userId: String
-    public let createdAt: Date
-    public let updatedAt: Date
-    public let metadata: [String: AnyCodable]?
+    public let ownerId: String
+    public let createdAt: String
+    public let updatedAt: String
     
     private enum CodingKeys: String, CodingKey {
         case id
         case filename
+        case objectName = "object_name"
+        case bucketName = "bucket_name"
         case contentType = "content_type"
         case size
         case bucketId = "bucket_id"
-        case userId = "user_id"
+        case ownerId = "owner_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
-        case metadata
     }
 }
 
@@ -109,14 +117,47 @@ public struct FileListOptions {
     }
 }
 
-/// Response from file upload
-public struct FileUploadResponse: Codable {
-    public let file: FileMetadata
-    public let uploadUrl: String?
+/// File upload initiation request
+public struct FileUploadInitiateRequest: Codable {
+    public let filename: String
+    public let contentType: String?
+    public let size: Int?
+    public let bucketId: String
+    
+    public init(filename: String, contentType: String? = nil, size: Int? = nil, bucketId: String) {
+        self.filename = filename
+        self.contentType = contentType
+        self.size = size
+        self.bucketId = bucketId
+    }
     
     private enum CodingKeys: String, CodingKey {
-        case file
+        case filename
+        case contentType = "content_type"
+        case size
+        case bucketId = "bucket_id"
+    }
+}
+
+/// Presigned upload info
+public struct PresignedUploadInfo: Codable {
+    public let uploadUrl: String
+    public let uploadMethod: String
+    
+    private enum CodingKeys: String, CodingKey {
         case uploadUrl = "upload_url"
+        case uploadMethod = "upload_method"
+    }
+}
+
+/// Response from file upload initiation
+public struct FileUploadInitiateResponse: Codable {
+    public let fileMetadata: FileMetadata
+    public let presignedUploadInfo: PresignedUploadInfo
+    
+    private enum CodingKeys: String, CodingKey {
+        case fileMetadata = "file_metadata"
+        case presignedUploadInfo = "presigned_upload_info"
     }
 }
 
