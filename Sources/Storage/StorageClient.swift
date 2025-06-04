@@ -132,7 +132,7 @@ public final class StorageClient {
     
     // MARK: - File Operations
     
-    /// Upload a file to a bucket using presigned URL approach
+    /// Upload a file to a bucket using presigned URL approach (matches JS SDK pattern)
     /// - Parameters:
     ///   - bucketName: Name of the bucket
     ///   - fileData: File data to upload
@@ -155,14 +155,39 @@ public final class StorageClient {
             )
         }
         
-        let fileMetadata = try await uploadToBucket(
-            bucketId: bucket.id,
-            fileData: fileData,
-            filename: filename,
-            options: options
-        )
-        
-        return FileUploadResponse(file: fileMetadata, uploadUrl: nil)
+        do {
+            // Step 1: Initiate upload to get presigned URL
+            let initiateRequest = FileUploadInitiateRequest(
+                filename: filename,
+                contentType: options.contentType,
+                size: fileData.count,
+                bucketId: bucket.id
+            )
+            
+            let initiateResponse: FileUploadInitiateResponse = try await authClient.makeAuthenticatedRequest(
+                method: .POST,
+                path: "/api/v1/files/initiate-upload",
+                body: initiateRequest
+            )
+            
+            // Step 2: Upload file to presigned URL
+            try await uploadToPresignedUrl(
+                presignedInfo: initiateResponse.presignedUploadInfo,
+                fileData: fileData,
+                contentType: options.contentType
+            )
+            
+            // Return the file metadata in the expected format
+            return FileUploadResponse(file: initiateResponse.fileMetadata, uploadUrl: nil)
+            
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Upload failed: \(error.localizedDescription)",
+                code: "UPLOAD_ERROR",
+                suggestion: "Check your file and bucket permissions"
+            )
+        }
     }
     
     /// Upload a file to a bucket by ID using presigned URL approach
