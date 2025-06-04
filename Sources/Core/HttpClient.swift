@@ -132,7 +132,7 @@ public actor HttpClient {
                 }
                 
                 // Debug logging for important requests
-                if path.contains("register") || path.contains("initiate-upload") {
+                if path.contains("register") || path.contains("initiate-upload") || path.contains("buckets") {
                     print("🌐 HTTP Request: \(method.rawValue) \(url)")
                     print("   - Headers: \(request.allHTTPHeaderFields ?? [:])")
                     if let body = body, let bodyString = String(data: body, encoding: .utf8) {
@@ -143,9 +143,12 @@ public actor HttpClient {
                 let (data, response) = try await session.data(for: request)
                 
                 // Debug logging for responses
-                if path.contains("register") || path.contains("initiate-upload") {
+                if path.contains("register") || path.contains("initiate-upload") || path.contains("buckets") {
                     if let httpResponse = response as? HTTPURLResponse {
                         print("🌐 HTTP Response: \(httpResponse.statusCode)")
+                        print("   - Content-Length: \(httpResponse.value(forHTTPHeaderField: "Content-Length") ?? "none")")
+                        print("   - Content-Type: \(httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "none")")
+                        print("   - Data size: \(data.count) bytes")
                         if let responseString = String(data: data, encoding: .utf8) {
                             print("   - Response: \(responseString)")
                         }
@@ -160,7 +163,8 @@ public actor HttpClient {
                 }
                 
                 guard !data.isEmpty else {
-                    throw ApiError("Empty response received", status: 200)
+                    print("❌ Empty response received for \(path)")
+                    throw ApiError("Empty response received for \(path)", status: 200)
                 }
                 
                 let decoder = JSONDecoder()
