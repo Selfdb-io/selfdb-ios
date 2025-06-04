@@ -240,7 +240,7 @@ public final class StorageClient {
             return FileUploadResponse(file: initiateResponse.fileMetadata, uploadUrl: nil)
             
         } catch let selfDBError as SelfDBError {
-            print("❌ SelfDB Error during upload: \(selfDBError.message)")
+            print("❌ SelfDB Error during upload: \(selfDBError.errorDescription ?? "Unknown error")")
             print("   - Code: \(selfDBError.code)")
             print("   - Suggestion: \(selfDBError.suggestion ?? "N/A")")
             throw selfDBError
