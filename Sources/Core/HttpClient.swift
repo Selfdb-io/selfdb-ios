@@ -108,7 +108,20 @@ public actor HttpClient {
                 request.httpMethod = method.rawValue
                 request.httpBody = body
                 
-                // Set headers
+                // Always include anon-key header if available (required by backend)
+                do {
+                    let config = try Config.getInstance()
+                    request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
+                    
+                    // Also include any additional configured headers
+                    for (key, value) in config.headers {
+                        request.setValue(value, forHTTPHeaderField: key)
+                    }
+                } catch {
+                    // Config not available - this will likely cause auth failures
+                }
+                
+                // Set provided headers (these can override defaults)
                 for (key, value) in headers {
                     request.setValue(value, forHTTPHeaderField: key)
                 }

@@ -96,9 +96,21 @@ public final class AuthClient {
     /// - Returns: Login response with user and tokens
     /// - Throws: AuthError or other SelfDB errors
     public func login(credentials: LoginRequest) async throws -> LoginResponse {
-        let response: LoginResponse = try await httpClient.post(
+        // Backend expects OAuth2PasswordRequestForm with username/password
+        let formData = [
+            "username": credentials.email, // OAuth2 uses 'username' field for email
+            "password": credentials.password
+        ]
+        
+        // Send as form data (application/x-www-form-urlencoded)
+        let formBody = formData.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
+        let bodyData = formBody.data(using: .utf8)!
+        
+        let response: LoginResponse = try await httpClient.request(
+            method: .POST,
             path: "/api/v1/auth/login",
-            body: credentials
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: bodyData
         )
         
         let tokens = AuthTokens(
@@ -155,15 +167,16 @@ public final class AuthClient {
             throw AuthError("No refresh token available")
         }
         
-        let body = ["refresh_token": currentTokens.refreshToken]
+        let refreshRequest = RefreshTokenRequest(refreshToken: currentTokens.refreshToken)
         let response: RefreshResponse = try await httpClient.post(
             path: "/api/v1/auth/refresh",
-            body: body
+            body: refreshRequest
         )
         
+        // Backend only returns new access token, keep existing refresh token
         let newTokens = AuthTokens(
             accessToken: response.accessToken,
-            refreshToken: response.refreshToken
+            refreshToken: currentTokens.refreshToken // Keep existing refresh token
         )
         
         // Update auth state with new tokens

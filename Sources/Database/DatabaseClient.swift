@@ -46,6 +46,45 @@ public final class DatabaseClient {
         self.authClient = authClient
     }
     
+    /// List all tables in the database
+    /// - Returns: Array of table information
+    /// - Throws: SelfDB errors
+    public func listTables() async throws -> [TableInfo] {
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/tables"
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to list tables: \(error.localizedDescription)",
+                code: "LIST_TABLES_ERROR",
+                suggestion: "Check your authentication and network connection"
+            )
+        }
+    }
+    
+    /// Get detailed information about a table
+    /// - Parameter tableName: Name of the table
+    /// - Returns: Table details including columns, keys, and indexes
+    /// - Throws: SelfDB errors
+    public func getTableDetails(tableName: String) async throws -> TableDetails {
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/tables/\(tableName)"
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get table details: \(error.localizedDescription)",
+                code: "TABLE_DETAILS_ERROR",
+                suggestion: "Check that the table '\(tableName)' exists"
+            )
+        }
+    }
+    
     /// Create a new record in a table
     /// - Parameters:
     ///   - table: Table name
@@ -165,12 +204,12 @@ public final class DatabaseClient {
     /// - Parameters:
     ///   - table: Table name
     ///   - where: Where conditions (currently only supports id-based deletes)
-    /// - Returns: True if successful
+    /// - Returns: Delete response with message and deleted data
     /// - Throws: SelfDB errors
     public func delete(
         table: String,
         where conditions: [String: Any]
-    ) async throws -> Bool {
+    ) async throws -> DeleteResponse {
         // For now, support simple id-based deletes
         guard let idValue = conditions["id"] else {
             throw SelfDBError(
@@ -183,11 +222,10 @@ public final class DatabaseClient {
         let path = "/api/v1/tables/\(table)/data/\(idValue)?id_column=id"
         
         do {
-            let _: EmptyResponse = try await authClient.makeAuthenticatedRequest(
+            return try await authClient.makeAuthenticatedRequest(
                 method: .DELETE,
                 path: path
             )
-            return true
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
@@ -195,6 +233,24 @@ public final class DatabaseClient {
                 code: "DELETE_ERROR",
                 suggestion: "Check your where conditions"
             )
+        }
+    }
+    
+    /// Backward compatibility method that returns Bool
+    /// - Parameters:
+    ///   - table: Table name
+    ///   - where: Where conditions
+    /// - Returns: True if successful
+    /// - Throws: SelfDB errors
+    public func deleteRecord(
+        table: String,
+        where conditions: [String: Any]
+    ) async throws -> Bool {
+        do {
+            _ = try await delete(table: table, where: conditions)
+            return true
+        } catch {
+            throw error
         }
     }
     
