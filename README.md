@@ -361,6 +361,7 @@ MIT License - see LICENSE file for details.
 
 - 🐛 [Issue Tracker](https://github.com/Selfdb-io/selfdb-ios/issues)
 - 📧 [Email Support](mailto:contact@selfdb.io)
+- X  [Connect with us on X](https://x.com/selfdb_io)  - [Rodgers] (https://x.com/RodgersMag)
 
 ---
 
