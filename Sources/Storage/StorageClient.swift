@@ -215,29 +215,40 @@ public final class StorageClient {
             )
             
             print("🔄 Step 1: Calling initiate-upload...")
-            let initiateResponse: FileUploadInitiateResponse = try await authClient.makeAuthenticatedRequest(
-                method: .POST,
-                path: "/api/v1/files/initiate-upload",
-                body: initiateRequest
-            )
-            
-            print("✅ Step 1 completed: Got presigned URL")
-            print("   - Upload URL: \(initiateResponse.presignedUploadInfo.uploadUrl)")
-            print("   - Upload Method: \(initiateResponse.presignedUploadInfo.uploadMethod)")
-            print("   - File ID: \(initiateResponse.fileMetadata.id)")
-            
-            // Step 2: Upload file to presigned URL
-            print("🔄 Step 2: Uploading to presigned URL...")
-            try await uploadToPresignedUrl(
-                presignedInfo: initiateResponse.presignedUploadInfo,
-                fileData: fileData,
-                contentType: contentType
-            )
-            
-            print("✅ Step 2 completed: File uploaded successfully")
-            
-            // Return the file metadata in the expected format
-            return FileUploadResponse(file: initiateResponse.fileMetadata, uploadUrl: nil)
+            do {
+                let initiateResponse: FileUploadInitiateResponse = try await authClient.makeAuthenticatedRequest(
+                    method: .POST,
+                    path: "/api/v1/files/initiate-upload",
+                    body: initiateRequest
+                )
+                
+                print("✅ Step 1 completed: Got presigned URL")
+                print("   - Upload URL: \(initiateResponse.presignedUploadInfo.uploadUrl)")
+                print("   - Upload Method: \(initiateResponse.presignedUploadInfo.uploadMethod)")
+                print("   - File ID: \(initiateResponse.fileMetadata.id)")
+                
+                // Step 2: Upload file to presigned URL
+                print("🔄 Step 2: Uploading to presigned URL...")
+                try await uploadToPresignedUrl(
+                    presignedInfo: initiateResponse.presignedUploadInfo,
+                    fileData: fileData,
+                    contentType: contentType
+                )
+                
+                print("✅ Step 2 completed: File uploaded successfully")
+                
+                // Return the file metadata in the expected format
+                return FileUploadResponse(file: initiateResponse.fileMetadata, uploadUrl: nil)
+                
+            } catch {
+                print("❌ Step 1 failed: Initiate upload error")
+                print("   - Error type: \(type(of: error))")
+                print("   - Error description: \(error.localizedDescription)")
+                if let decodingError = error as? DecodingError {
+                    print("   - Decoding error details: \(decodingError)")
+                }
+                throw error
+            }
             
         } catch let selfDBError as SelfDBError {
             print("❌ SelfDB Error during upload: \(selfDBError.errorDescription ?? "Unknown error")")

@@ -146,16 +146,32 @@ public final class AuthClient {
         // Encode credentials to JSON data
         let bodyData = try JSONEncoder().encode(credentials)
         
-        let user: User = try await httpClient.request(
-            method: .POST,
-            path: "/api/v1/auth/register",
-            headers: headers,
-            body: bodyData
-        )
+        print("🔄 Making registration request to /api/v1/auth/register")
+        print("   - Email: \(credentials.email)")
+        print("   - Headers: \(headers)")
         
-        // Note: Registration doesn't automatically log in the user
-        // The caller needs to call login() separately if they want to authenticate
-        return user
+        do {
+            let user: User = try await httpClient.request(
+                method: .POST,
+                path: "/api/v1/auth/register",
+                headers: headers,
+                body: bodyData
+            )
+            
+            print("✅ Registration request successful")
+            print("   - User ID: \(user.id)")
+            print("   - User Email: \(user.email)")
+            return user
+            
+        } catch {
+            print("❌ Registration request failed")
+            print("   - Error type: \(type(of: error))")
+            print("   - Error description: \(error.localizedDescription)")
+            if let decodingError = error as? DecodingError {
+                print("   - Decoding error details: \(decodingError)")
+            }
+            throw error
+        }
     }
     
     /// Logout the current user

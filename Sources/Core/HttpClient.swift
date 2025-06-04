@@ -131,7 +131,26 @@ public actor HttpClient {
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 }
                 
+                // Debug logging for important requests
+                if path.contains("register") || path.contains("initiate-upload") {
+                    print("🌐 HTTP Request: \(method.rawValue) \(url)")
+                    print("   - Headers: \(request.allHTTPHeaderFields ?? [:])")
+                    if let body = body, let bodyString = String(data: body, encoding: .utf8) {
+                        print("   - Body: \(bodyString)")
+                    }
+                }
+                
                 let (data, response) = try await session.data(for: request)
+                
+                // Debug logging for responses
+                if path.contains("register") || path.contains("initiate-upload") {
+                    if let httpResponse = response as? HTTPURLResponse {
+                        print("🌐 HTTP Response: \(httpResponse.statusCode)")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("   - Response: \(responseString)")
+                        }
+                    }
+                }
                 
                 try handleResponse(response, data: data)
                 

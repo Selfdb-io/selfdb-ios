@@ -6,8 +6,8 @@ public struct User: Codable, Equatable {
     public let email: String
     public let isActive: Bool
     public let isSuperuser: Bool
-    public let createdAt: Date
-    public let updatedAt: Date
+    public let createdAt: String
+    public let updatedAt: String?
     
     private enum CodingKeys: String, CodingKey {
         case id
@@ -76,13 +76,14 @@ public struct LoginResponse: Codable {
     
     // Computed property for backward compatibility
     public var user: User {
+        let now = ISO8601DateFormatter().string(from: Date())
         return User(
             id: userId,
             email: email,
             isActive: true, // We assume logged in users are active
             isSuperuser: isSuperuser,
-            createdAt: Date(), // We don't have these from login response
-            updatedAt: Date()
+            createdAt: now, // We don't have these from login response
+            updatedAt: now
         )
     }
     
