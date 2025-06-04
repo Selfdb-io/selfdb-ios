@@ -1,4 +1,4 @@
-# 🚀 SelfDB Swift SDK
+# 🚀 SelfDB Swift SDK - 🚨🔔 STILL UNDER TESTING 🚨🔔
 
 A first-class Swift SDK for SelfDB - a self-hosted alternative to Supabase. Build powerful iOS, macOS, tvOS, and watchOS applications with real-time features, authentication, database operations, and file storage.
 
