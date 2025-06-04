@@ -20,14 +20,14 @@ A first-class Swift SDK for SelfDB - a self-hosted alternative to Supabase. Buil
 Add SelfDB to your project through Xcode:
 
 1. File → Add Package Dependencies
-2. Enter repository URL: `https://github.com/rodgersmag/SDK`
+2. Enter repository URL: `https://github.com/Selfdb-io/selfdb-ios`
 3. Select the SelfDB package
 
 Or add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/rodgersmag/SDK", from: "0.1.0")
+    .package(url: "https://github.com/Selfdb-io/selfdb-ios", from: "0.1.0")
 ]
 ```
 
@@ -359,7 +359,7 @@ MIT License - see LICENSE file for details.
 ## 🆘 Support
 
 
-- 🐛 [Issue Tracker](https://github.com/rodgersmag/SDK/issues)
+- 🐛 [Issue Tracker](https://github.com/Selfdb-io/selfdb-ios/issues)
 - 📧 [Email Support](mailto:contact@selfdb.io)
 
 ---
