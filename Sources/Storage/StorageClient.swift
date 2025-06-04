@@ -206,49 +206,57 @@ public final class StorageClient {
             print("   - Content Type: \(contentType)")
             print("   - File Size: \(fileData.count) bytes")
             
-            // Step 1: Initiate upload to get presigned URL
-            let initiateRequest = FileUploadInitiateRequest(
-                filename: filename,
-                contentType: contentType,
-                size: fileData.count,
-                bucketId: bucket.id
+            // Step 1: Initiate upload via backend API (matches JS SDK exactly)
+            let initiateRequestData: [String: Any] = [
+                "filename": filename,
+                "content_type": contentType,
+                "size": fileData.count,
+                "bucket_id": bucket.id
+            ]
+            
+            print("🔄 Step 1: Calling initiate-upload with data: \(initiateRequestData)")
+            
+            let response: [String: Any] = try await authClient.makeAuthenticatedRequest(
+                method: .POST,
+                path: "/api/v1/files/initiate-upload",
+                body: initiateRequestData
             )
             
-            print("🔄 Step 1: Calling initiate-upload...")
-            do {
-                let initiateResponse: FileUploadInitiateResponse = try await authClient.makeAuthenticatedRequest(
-                    method: .POST,
-                    path: "/api/v1/files/initiate-upload",
-                    body: initiateRequest
+            print("✅ Step 1 completed: Got response \(response)")
+            
+            // Parse response
+            guard let fileMetadataDict = response["file_metadata"] as? [String: Any],
+                  let presignedUploadInfoDict = response["presigned_upload_info"] as? [String: Any],
+                  let uploadUrl = presignedUploadInfoDict["upload_url"] as? String,
+                  let uploadMethod = presignedUploadInfoDict["upload_method"] as? String else {
+                throw SelfDBError(
+                    message: "Invalid response from initiate-upload",
+                    code: "INVALID_RESPONSE",
+                    suggestion: "Check backend API response format"
                 )
-                
-                print("✅ Step 1 completed: Got presigned URL")
-                print("   - Upload URL: \(initiateResponse.presignedUploadInfo.uploadUrl)")
-                print("   - Upload Method: \(initiateResponse.presignedUploadInfo.uploadMethod)")
-                print("   - File ID: \(initiateResponse.fileMetadata.id)")
-                
-                // Step 2: Upload file to presigned URL
-                print("🔄 Step 2: Uploading to presigned URL...")
-                try await uploadToPresignedUrl(
-                    presignedInfo: initiateResponse.presignedUploadInfo,
-                    fileData: fileData,
-                    contentType: contentType
-                )
-                
-                print("✅ Step 2 completed: File uploaded successfully")
-                
-                // Return the file metadata in the expected format
-                return FileUploadResponse(file: initiateResponse.fileMetadata, uploadUrl: nil)
-                
-            } catch {
-                print("❌ Step 1 failed: Initiate upload error")
-                print("   - Error type: \(type(of: error))")
-                print("   - Error description: \(error.localizedDescription)")
-                if let decodingError = error as? DecodingError {
-                    print("   - Decoding error details: \(decodingError)")
-                }
-                throw error
             }
+            
+            print("   - Upload URL: \(uploadUrl)")
+            print("   - Upload Method: \(uploadMethod)")
+            
+            // Step 2: Upload directly to storage service using presigned URL (matches JS SDK fetch)
+            print("🔄 Step 2: Uploading to presigned URL...")
+            try await uploadToPresignedUrlDirectly(
+                uploadUrl: uploadUrl,
+                uploadMethod: uploadMethod,
+                fileData: fileData,
+                contentType: contentType
+            )
+            
+            print("✅ Step 2 completed: File uploaded successfully")
+            
+            // Parse file metadata and return (matches JS SDK: { file: file_metadata })
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let fileMetadataData = try JSONSerialization.data(withJSONObject: fileMetadataDict)
+            let fileMetadata = try decoder.decode(FileMetadata.self, from: fileMetadataData)
+            
+            return FileUploadResponse(file: fileMetadata, uploadUrl: nil)
             
         } catch let selfDBError as SelfDBError {
             print("❌ SelfDB Error during upload: \(selfDBError.errorDescription ?? "Unknown error")")
@@ -312,6 +320,79 @@ public final class StorageClient {
                 message: "Upload failed: \(error.localizedDescription)",
                 code: "UPLOAD_ERROR",
                 suggestion: "Check your file and bucket permissions"
+            )
+        }
+    }
+    
+    /// Upload file data directly to presigned URL (matches JS SDK fetch exactly)
+    private func uploadToPresignedUrlDirectly(
+        uploadUrl: String,
+        uploadMethod: String,
+        fileData: Data,
+        contentType: String
+    ) async throws {
+        guard let url = URL(string: uploadUrl) else {
+            print("❌ Invalid presigned URL: \(uploadUrl)")
+            throw SelfDBError(
+                message: "Invalid presigned URL",
+                code: "INVALID_URL",
+                suggestion: "Contact support if this persists"
+            )
+        }
+        
+        print("🔄 Uploading to presigned URL: \(uploadUrl)")
+        print("   - Method: \(uploadMethod.uppercased())")
+        print("   - Content-Type: \(contentType)")
+        print("   - Data size: \(fileData.count) bytes")
+        
+        // Create request exactly like JS SDK fetch
+        var request = URLRequest(url: url)
+        request.httpMethod = uploadMethod.uppercased()
+        request.httpBody = fileData
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        
+        let session = URLSession.shared
+        
+        do {
+            let (responseData, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ Invalid response type received")
+                throw SelfDBError(
+                    message: "Invalid response received",
+                    code: "INVALID_RESPONSE",
+                    suggestion: "Check network connection"
+                )
+            }
+            
+            print("📡 Presigned upload response: \(httpResponse.statusCode)")
+            
+            if let responseString = String(data: responseData, encoding: .utf8), !responseString.isEmpty {
+                print("   - Response body: \(responseString)")
+            }
+            
+            // Check for success (matches JS SDK: if (!response.ok))
+            if httpResponse.statusCode < 200 || httpResponse.statusCode >= 300 {
+                let errorMessage = String(data: responseData, encoding: .utf8) ?? "Unknown error"
+                print("❌ Presigned upload failed with status \(httpResponse.statusCode): \(errorMessage)")
+                throw SelfDBError(
+                    message: "Upload failed: \(httpResponse.statusCode) \(errorMessage)",
+                    code: "UPLOAD_FAILED",
+                    suggestion: "Check file format and size limits"
+                )
+            }
+            
+            print("✅ Presigned upload completed successfully")
+            
+        } catch {
+            print("❌ Network error during presigned upload: \(error)")
+            if error is SelfDBError {
+                throw error
+            }
+            throw SelfDBError(
+                message: "Network error: \(error.localizedDescription)",
+                code: "NETWORK_ERROR",
+                suggestion: "Check your internet connection"
             )
         }
     }
