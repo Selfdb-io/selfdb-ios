@@ -77,7 +77,7 @@ public struct FileMetadata: Codable, Identifiable {
     public let bucketId: String
     public let ownerId: String
     public let createdAt: String
-    public let updatedAt: String
+    public let updatedAt: String?
     
     private enum CodingKeys: String, CodingKey {
         case id

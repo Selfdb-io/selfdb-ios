@@ -308,11 +308,11 @@ public final class StorageClient {
     /// - Throws: SelfDB errors
     public func getDownloadUrl(fileId: String) async throws -> String {
         do {
-            let wrappedResponse: WrappedFileDownloadInfoResponse = try await authClient.makeAuthenticatedRequest(
+            let response: FileDownloadInfoResponse = try await authClient.makeAuthenticatedRequest(
                 method: .GET,
                 path: "/api/v1/files/\(fileId)/download-info"
             )
-            return wrappedResponse.data.downloadUrl
+            return response.downloadUrl
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
@@ -329,11 +329,11 @@ public final class StorageClient {
     /// - Throws: SelfDB errors
     public func getViewUrl(fileId: String) async throws -> String {
         do {
-            let wrappedResponse: WrappedFileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
+            let response: FileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
                 method: .GET,
                 path: "/api/v1/files/\(fileId)/view-info"
             )
-            return wrappedResponse.data.viewUrl
+            return response.viewUrl
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
@@ -350,11 +350,11 @@ public final class StorageClient {
     /// - Throws: SelfDB errors
     public func getPublicViewUrl(fileId: String) async throws -> String {
         do {
-            let wrappedResponse: WrappedFileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
+            let response: FileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
                 method: .GET,
                 path: "/api/v1/files/public/\(fileId)/view-info"
             )
-            return wrappedResponse.data.viewUrl
+            return response.viewUrl
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
@@ -371,11 +371,10 @@ public final class StorageClient {
     /// - Throws: SelfDB errors
     public func getPublicFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
         do {
-            let wrappedResponse: WrappedFileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
+            return try await authClient.makeAuthenticatedRequest(
                 method: .GET,
                 path: "/api/v1/files/public/\(fileId)/view-info"
             )
-            return wrappedResponse.data
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
@@ -392,11 +391,10 @@ public final class StorageClient {
     /// - Throws: SelfDB errors
     public func getFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
         do {
-            let wrappedResponse: WrappedFileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
+            return try await authClient.makeAuthenticatedRequest(
                 method: .GET,
                 path: "/api/v1/files/\(fileId)/view-info"
             )
-            return wrappedResponse.data
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
