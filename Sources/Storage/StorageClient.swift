@@ -15,6 +15,48 @@ public final class StorageClient {
         self.config = try Config.getInstance()
     }
     
+    /// Detect content type from filename extension
+    private func detectContentType(from filename: String) -> String {
+        let lowercaseFilename = filename.lowercased()
+        
+        // Image types
+        if lowercaseFilename.hasSuffix(".jpg") || lowercaseFilename.hasSuffix(".jpeg") {
+            return "image/jpeg"
+        } else if lowercaseFilename.hasSuffix(".png") {
+            return "image/png"
+        } else if lowercaseFilename.hasSuffix(".gif") {
+            return "image/gif"
+        } else if lowercaseFilename.hasSuffix(".webp") {
+            return "image/webp"
+        }
+        // Video types
+        else if lowercaseFilename.hasSuffix(".mp4") {
+            return "video/mp4"
+        } else if lowercaseFilename.hasSuffix(".mov") {
+            return "video/quicktime"
+        } else if lowercaseFilename.hasSuffix(".avi") {
+            return "video/x-msvideo"
+        }
+        // Audio types
+        else if lowercaseFilename.hasSuffix(".mp3") {
+            return "audio/mpeg"
+        } else if lowercaseFilename.hasSuffix(".wav") {
+            return "audio/wav"
+        }
+        // Document types
+        else if lowercaseFilename.hasSuffix(".pdf") {
+            return "application/pdf"
+        } else if lowercaseFilename.hasSuffix(".txt") {
+            return "text/plain"
+        } else if lowercaseFilename.hasSuffix(".json") {
+            return "application/json"
+        }
+        // Default
+        else {
+            return "application/octet-stream"
+        }
+    }
+    
     // MARK: - Bucket Operations
     
     /// List all buckets
@@ -156,32 +198,56 @@ public final class StorageClient {
         }
         
         do {
+            // Determine content type if not provided
+            let contentType = options.contentType ?? detectContentType(from: filename)
+            
+            print("🔄 Starting upload for \(filename) to bucket \(bucketName)")
+            print("   - Bucket ID: \(bucket.id)")
+            print("   - Content Type: \(contentType)")
+            print("   - File Size: \(fileData.count) bytes")
+            
             // Step 1: Initiate upload to get presigned URL
             let initiateRequest = FileUploadInitiateRequest(
                 filename: filename,
-                contentType: options.contentType,
+                contentType: contentType,
                 size: fileData.count,
                 bucketId: bucket.id
             )
             
+            print("🔄 Step 1: Calling initiate-upload...")
             let initiateResponse: FileUploadInitiateResponse = try await authClient.makeAuthenticatedRequest(
                 method: .POST,
                 path: "/api/v1/files/initiate-upload",
                 body: initiateRequest
             )
             
+            print("✅ Step 1 completed: Got presigned URL")
+            print("   - Upload URL: \(initiateResponse.presignedUploadInfo.uploadUrl)")
+            print("   - Upload Method: \(initiateResponse.presignedUploadInfo.uploadMethod)")
+            print("   - File ID: \(initiateResponse.fileMetadata.id)")
+            
             // Step 2: Upload file to presigned URL
+            print("🔄 Step 2: Uploading to presigned URL...")
             try await uploadToPresignedUrl(
                 presignedInfo: initiateResponse.presignedUploadInfo,
                 fileData: fileData,
-                contentType: options.contentType
+                contentType: contentType
             )
+            
+            print("✅ Step 2 completed: File uploaded successfully")
             
             // Return the file metadata in the expected format
             return FileUploadResponse(file: initiateResponse.fileMetadata, uploadUrl: nil)
             
+        } catch let selfDBError as SelfDBError {
+            print("❌ SelfDB Error during upload: \(selfDBError.message)")
+            print("   - Code: \(selfDBError.code)")
+            print("   - Suggestion: \(selfDBError.suggestion ?? "N/A")")
+            throw selfDBError
         } catch {
-            if error is SelfDBError { throw error }
+            print("❌ Unexpected error during upload: \(error)")
+            print("   - Error type: \(type(of: error))")
+            print("   - Error description: \(error.localizedDescription)")
             throw SelfDBError(
                 message: "Upload failed: \(error.localizedDescription)",
                 code: "UPLOAD_ERROR",
@@ -246,6 +312,7 @@ public final class StorageClient {
         contentType: String?
     ) async throws {
         guard let url = URL(string: presignedInfo.uploadUrl) else {
+            print("❌ Invalid presigned URL: \(presignedInfo.uploadUrl)")
             throw SelfDBError(
                 message: "Invalid presigned URL",
                 code: "INVALID_URL",
@@ -253,8 +320,13 @@ public final class StorageClient {
             )
         }
         
+        print("🔄 Uploading to presigned URL: \(presignedInfo.uploadUrl)")
+        print("   - Method: \(presignedInfo.uploadMethod)")
+        print("   - Content-Type: \(contentType ?? "none")")
+        print("   - Data size: \(fileData.count) bytes")
+        
         var request = URLRequest(url: url)
-        request.httpMethod = presignedInfo.uploadMethod
+        request.httpMethod = presignedInfo.uploadMethod.uppercased()
         request.httpBody = fileData
         
         if let contentType = contentType {
@@ -262,14 +334,32 @@ public final class StorageClient {
         }
         
         let session = URLSession.shared
-        let (_, response) = try await session.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError("Invalid response received")
-        }
-        
-        if httpResponse.statusCode >= 400 {
-            throw ApiError("Presigned upload failed", status: httpResponse.statusCode)
+        do {
+            let (responseData, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ Invalid response type received")
+                throw NetworkError("Invalid response received")
+            }
+            
+            print("📡 Presigned upload response: \(httpResponse.statusCode)")
+            
+            if let responseString = String(data: responseData, encoding: .utf8), !responseString.isEmpty {
+                print("   - Response body: \(responseString)")
+            }
+            
+            if httpResponse.statusCode >= 400 {
+                let errorMessage = String(data: responseData, encoding: .utf8) ?? "Unknown error"
+                print("❌ Presigned upload failed with status \(httpResponse.statusCode): \(errorMessage)")
+                throw ApiError("Presigned upload failed: \(errorMessage)", status: httpResponse.statusCode)
+            }
+            
+            print("✅ Presigned upload completed successfully")
+            
+        } catch {
+            print("❌ Network error during presigned upload: \(error)")
+            throw error
         }
     }
     
