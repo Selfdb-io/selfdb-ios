@@ -136,13 +136,21 @@ public final class AuthClient {
     public func register(credentials: RegisterRequest) async throws -> User {
         // Include API key in headers for register request
         var headers: [String: String] = [:]
-        headers["apikey"] = config.anonKey
+        do {
+            let config = try Config.getInstance()
+            headers["apikey"] = config.anonKey
+        } catch {
+            // Config not available, continue without apikey
+        }
+        
+        // Encode credentials to JSON data
+        let bodyData = try JSONEncoder().encode(credentials)
         
         let user: User = try await httpClient.request(
             method: .POST,
             path: "/api/v1/auth/register",
             headers: headers,
-            body: credentials
+            body: bodyData
         )
         
         // Note: Registration doesn't automatically log in the user
