@@ -207,56 +207,39 @@ public final class StorageClient {
             print("   - File Size: \(fileData.count) bytes")
             
             // Step 1: Initiate upload via backend API (matches JS SDK exactly)
-            let initiateRequestData: [String: Any] = [
-                "filename": filename,
-                "content_type": contentType,
-                "size": fileData.count,
-                "bucket_id": bucket.id
-            ]
-            
-            print("🔄 Step 1: Calling initiate-upload with data: \(initiateRequestData)")
-            
-            let response: [String: Any] = try await authClient.makeAuthenticatedRequest(
-                method: .POST,
-                path: "/api/v1/files/initiate-upload",
-                body: initiateRequestData
+            let initiateRequest = FileUploadInitiateRequest(
+                filename: filename,
+                contentType: contentType,
+                size: fileData.count,
+                bucketId: bucket.id
             )
             
-            print("✅ Step 1 completed: Got response \(response)")
+            print("🔄 Step 1: Calling initiate-upload...")
             
-            // Parse response
-            guard let fileMetadataDict = response["file_metadata"] as? [String: Any],
-                  let presignedUploadInfoDict = response["presigned_upload_info"] as? [String: Any],
-                  let uploadUrl = presignedUploadInfoDict["upload_url"] as? String,
-                  let uploadMethod = presignedUploadInfoDict["upload_method"] as? String else {
-                throw SelfDBError(
-                    message: "Invalid response from initiate-upload",
-                    code: "INVALID_RESPONSE",
-                    suggestion: "Check backend API response format"
-                )
-            }
+            let response: FileUploadInitiateResponse = try await authClient.makeAuthenticatedRequest(
+                method: .POST,
+                path: "/api/v1/files/initiate-upload",
+                body: initiateRequest
+            )
             
-            print("   - Upload URL: \(uploadUrl)")
-            print("   - Upload Method: \(uploadMethod)")
+            print("✅ Step 1 completed: Got presigned URL")
+            print("   - Upload URL: \(response.presignedUploadInfo.uploadUrl)")
+            print("   - Upload Method: \(response.presignedUploadInfo.uploadMethod)")
+            print("   - File ID: \(response.fileMetadata.id)")
             
             // Step 2: Upload directly to storage service using presigned URL (matches JS SDK fetch)
             print("🔄 Step 2: Uploading to presigned URL...")
             try await uploadToPresignedUrlDirectly(
-                uploadUrl: uploadUrl,
-                uploadMethod: uploadMethod,
+                uploadUrl: response.presignedUploadInfo.uploadUrl,
+                uploadMethod: response.presignedUploadInfo.uploadMethod,
                 fileData: fileData,
                 contentType: contentType
             )
             
             print("✅ Step 2 completed: File uploaded successfully")
             
-            // Parse file metadata and return (matches JS SDK: { file: file_metadata })
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let fileMetadataData = try JSONSerialization.data(withJSONObject: fileMetadataDict)
-            let fileMetadata = try decoder.decode(FileMetadata.self, from: fileMetadataData)
-            
-            return FileUploadResponse(file: fileMetadata, uploadUrl: nil)
+            // Return the file metadata in the expected format (matches JS SDK: { file: file_metadata })
+            return FileUploadResponse(file: response.fileMetadata, uploadUrl: nil)
             
         } catch let selfDBError as SelfDBError {
             print("❌ SelfDB Error during upload: \(selfDBError.errorDescription ?? "Unknown error")")
