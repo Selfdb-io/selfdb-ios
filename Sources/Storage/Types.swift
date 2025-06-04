@@ -172,6 +172,17 @@ public struct FileDownloadInfoResponse: Codable {
     }
 }
 
+/// Response for file upload (matches JS SDK structure)
+public struct FileUploadResponse: Codable {
+    public let file: FileMetadata
+    public let uploadUrl: String?
+    
+    private enum CodingKeys: String, CodingKey {
+        case file
+        case uploadUrl = "upload_url"
+    }
+}
+
 /// Response for file view info (unwrapped)
 public struct FileViewInfoResponse: Codable {
     public let fileMetadata: FileMetadata

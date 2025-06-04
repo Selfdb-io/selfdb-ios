@@ -9,10 +9,12 @@ DerivedData/
 
 /Auhth.MD
 /Tables.MD
-/CLAUDE.md
+CLAUDE.md
 /Storage.MD
 /APPTABLES.MD
 selfd-swift/
 /expo-logs.md
 /JS-SDK.MD
+/expo-app.md
 .claude/
+UI/

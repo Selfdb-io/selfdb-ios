@@ -131,15 +131,23 @@ public final class AuthClient {
     
     /// Register a new user
     /// - Parameter credentials: Registration credentials
-    /// - Returns: Registration response
+    /// - Returns: User (registration doesn't automatically log in)
     /// - Throws: ValidationError or other SelfDB errors
-    public func register(credentials: RegisterRequest) async throws -> RegisterResponse {
-        let response: RegisterResponse = try await httpClient.post(
+    public func register(credentials: RegisterRequest) async throws -> User {
+        // Include API key in headers for register request
+        var headers: [String: String] = [:]
+        headers["apikey"] = config.anonKey
+        
+        let user: User = try await httpClient.request(
+            method: .POST,
             path: "/api/v1/auth/register",
+            headers: headers,
             body: credentials
         )
         
-        return response
+        // Note: Registration doesn't automatically log in the user
+        // The caller needs to call login() separately if they want to authenticate
+        return user
     }
     
     /// Logout the current user

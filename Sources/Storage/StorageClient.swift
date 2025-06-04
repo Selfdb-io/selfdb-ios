@@ -145,7 +145,7 @@ public final class StorageClient {
         file fileData: Data,
         filename: String,
         options: UploadFileOptions = UploadFileOptions()
-    ) async throws -> FileMetadata {
+    ) async throws -> FileUploadResponse {
         // Find bucket by name
         guard let bucket = try await findBucketByName(bucketName) else {
             throw SelfDBError(
@@ -155,12 +155,14 @@ public final class StorageClient {
             )
         }
         
-        return try await uploadToBucket(
+        let fileMetadata = try await uploadToBucket(
             bucketId: bucket.id,
             fileData: fileData,
             filename: filename,
             options: options
         )
+        
+        return FileUploadResponse(file: fileMetadata, uploadUrl: nil)
     }
     
     /// Upload a file to a bucket by ID using presigned URL approach
