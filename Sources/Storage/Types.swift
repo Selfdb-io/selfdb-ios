@@ -8,8 +8,9 @@ public struct Bucket: Codable, Identifiable {
     public let isPublic: Bool
     public let description: String?
     public let createdAt: String
-    public let updatedAt: String
+    public let updatedAt: String?
     public let ownerId: String
+    public let minioBucketName: String?
     
     // Stats fields
     public let fileCount: Int?
@@ -23,6 +24,7 @@ public struct Bucket: Codable, Identifiable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case ownerId = "owner_id"
+        case minioBucketName = "minio_bucket_name"
         case fileCount = "file_count"
         case totalSize = "total_size"
     }
