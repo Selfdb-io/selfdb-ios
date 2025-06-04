@@ -172,7 +172,7 @@ public struct FileDownloadInfoResponse: Codable {
     }
 }
 
-/// Response for file view info
+/// Response for file view info (unwrapped)
 public struct FileViewInfoResponse: Codable {
     public let fileMetadata: FileMetadata
     public let viewUrl: String
@@ -181,6 +181,16 @@ public struct FileViewInfoResponse: Codable {
         case fileMetadata = "file_metadata"
         case viewUrl = "view_url"
     }
+}
+
+/// Wrapped response for file view info (matches JS SDK structure)
+public struct WrappedFileViewInfoResponse: Codable {
+    public let data: FileViewInfoResponse
+}
+
+/// Wrapped response for file download info (matches JS SDK structure)
+public struct WrappedFileDownloadInfoResponse: Codable {
+    public let data: FileDownloadInfoResponse
 }
 
 /// Progress callback for uploads
