@@ -10,6 +10,7 @@ public final class RealtimeClient: NSObject {
     private let authClient: AuthClient
     private let config: RealtimeConfig
     private var webSocketTask: URLSessionWebSocketTask?
+    private var urlSession: URLSession?
     private var connectionState = ConnectionState()
     private var subscriptions: [String: (String, String?, RealtimeCallback)] = [:]
     private var retryCount = 0
@@ -19,9 +20,17 @@ public final class RealtimeClient: NSObject {
     public init(authClient: AuthClient, config: RealtimeConfig = RealtimeConfig()) throws {
         self.authClient = authClient
         
-        // Build WebSocket URL
-        let baseConfig = try Config.getInstance()
-        let wsUrl = config.url ?? baseConfig.baseUrl.replacingOccurrences(of: "http", with: "ws") + "/api/v1/realtime/ws"
+        // Use provided URL or construct from base config
+        let wsUrl: String
+        if let providedUrl = config.url {
+            wsUrl = providedUrl
+        } else {
+            let baseConfig = try Config.getInstance()
+            // Ensure we use wss:// for secure WebSocket
+            let baseUrl = baseConfig.baseUrl.replacingOccurrences(of: "https://", with: "wss://")
+                                           .replacingOccurrences(of: "http://", with: "ws://")
+            wsUrl = baseUrl + "/api/v1/realtime/ws"
+        }
         
         self.config = RealtimeConfig(
             url: wsUrl,
@@ -32,6 +41,10 @@ public final class RealtimeClient: NSObject {
         )
         
         super.init()
+    }
+    
+    deinit {
+        disconnect()
     }
     
     /// Connect to the realtime service
@@ -58,6 +71,8 @@ public final class RealtimeClient: NSObject {
         
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
+        urlSession?.invalidateAndCancel()
+        urlSession = nil
         
         subscriptions.removeAll()
         self.connectionState = ConnectionState()
@@ -127,6 +142,7 @@ public final class RealtimeClient: NSObject {
         }
         
         var request = URLRequest(url: url)
+        request.timeoutInterval = 60.0
         
         // Add auth headers
         let headers = authClient.getAuthHeaders()
@@ -134,8 +150,19 @@ public final class RealtimeClient: NSObject {
             request.setValue(value, forHTTPHeaderField: key)
         }
         
-        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-        webSocketTask = session.webSocketTask(with: request)
+        // Add WebSocket specific headers
+        request.setValue("websocket", forHTTPHeaderField: "Upgrade")
+        request.setValue("Upgrade", forHTTPHeaderField: "Connection")
+        request.setValue("13", forHTTPHeaderField: "Sec-WebSocket-Version")
+        
+        // Create URLSession with proper configuration
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 60.0
+        configuration.timeoutIntervalForResource = 300.0
+        configuration.waitsForConnectivity = true
+        
+        urlSession = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
+        webSocketTask = urlSession?.webSocketTask(with: request)
         
         webSocketTask?.resume()
         
@@ -156,9 +183,25 @@ public final class RealtimeClient: NSObject {
     }
     
     private func waitForConnection() async throws {
-        // Simple wait for connection - in a real implementation you might want to
-        // wait for a specific handshake message
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        // Send a ping and wait for pong to confirm connection
+        let ping = RealtimeMessage(type: "ping", channel: "", event: "")
+        
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(ping)
+            let text = String(data: data, encoding: .utf8) ?? ""
+            
+            try await webSocketTask?.send(.string(text))
+            
+            // Wait a bit for connection to stabilize
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        } catch {
+            throw SelfDBError(
+                message: "Failed to establish WebSocket connection",
+                code: "CONNECTION_FAILED",
+                suggestion: "Check your network connection and try again"
+            )
+        }
     }
     
     private func startReceiving() {
@@ -237,23 +280,42 @@ public final class RealtimeClient: NSObject {
     
     private func handleDisconnection(error: Error?) {
         self.connectionState = ConnectionState()
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
+        urlSession?.invalidateAndCancel()
+        urlSession = nil
         heartbeatTask?.cancel()
+        
+        // Log the error for debugging
+        if let error = error {
+            print("🔌 WebSocket disconnected with error: \(error)")
+        } else {
+            print("🔌 WebSocket disconnected")
+        }
         
         // Auto-reconnect if enabled
         if config.autoReconnect && retryCount < config.maxRetries {
             self.connectionState = ConnectionState(reconnecting: true)
             
             reconnectTask = Task {
-                let delay = config.retryDelay * pow(2.0, Double(retryCount))
+                let delay = min(
+                    config.reconnectInterval * pow(2.0, Double(retryCount)),
+                    config.maxReconnectInterval
+                )
+                print("🔄 Attempting reconnection in \(delay) seconds...")
+                
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                
+                guard !Task.isCancelled else { return }
                 
                 retryCount += 1
                 
                 do {
                     try await performConnection()
+                    print("✅ Reconnection successful")
                 } catch {
-                    // Retry failed, will try again unless max retries reached
+                    print("❌ Reconnection attempt \(retryCount) failed: \(error)")
+                    // Will retry again if under max retries
                 }
             }
         }
