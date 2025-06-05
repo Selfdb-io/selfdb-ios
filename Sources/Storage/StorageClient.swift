@@ -739,4 +739,82 @@ public final class StorageClient {
     public func getPublicUrl(bucket: String, path: String) throws -> String {
         return "\(config.storageUrl)/files/download/\(bucket)/\(path)"
     }
+    
+    /// Get file view information
+    /// - Parameter fileId: File ID
+    /// - Returns: File view information including URL
+    /// - Throws: SelfDB errors
+    public func getFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/files/\(fileId)/view-info"
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get file view info: \(error.localizedDescription)",
+                code: "VIEW_INFO_ERROR",
+                suggestion: "Check file ID and permissions"
+            )
+        }
+    }
+    
+    /// Get public file view information (for files in public buckets)
+    /// - Parameter fileId: File ID
+    /// - Returns: File view information including URL
+    /// - Throws: SelfDB errors
+    public func getPublicFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
+        do {
+            // For public endpoints, we still need to make a request but without auth
+            // Create a URL directly and make the request
+            guard let url = URL(string: "\(config.baseUrl)/api/v1/files/public/\(fileId)/view-info") else {
+                throw SelfDBError(
+                    message: "Invalid URL for public file view info",
+                    code: "INVALID_URL"
+                )
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw SelfDBError(
+                    message: "Invalid response",
+                    code: "INVALID_RESPONSE"
+                )
+            }
+            
+            if httpResponse.statusCode == 404 {
+                throw SelfDBError(
+                    message: "File not found or not in a public bucket",
+                    code: "FILE_NOT_FOUND",
+                    suggestion: "Ensure the file exists and is in a public bucket"
+                )
+            }
+            
+            guard 200...299 ~= httpResponse.statusCode else {
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                throw SelfDBError(
+                    message: "Failed to get public file view info: \(errorMessage) (HTTP \(httpResponse.statusCode))",
+                    code: "PUBLIC_VIEW_INFO_ERROR"
+                )
+            }
+            
+            let decoder = JSONDecoder()
+            return try decoder.decode(FileViewInfoResponse.self, from: data)
+            
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get public file view info: \(error.localizedDescription)",
+                code: "PUBLIC_VIEW_INFO_ERROR",
+                suggestion: "Ensure the file is in a public bucket"
+            )
+        }
+    }
 }
