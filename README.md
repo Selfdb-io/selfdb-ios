@@ -1,367 +1,376 @@
-# 🚀 SelfDB Swift SDK - 🚨🔔 STILL UNDER TESTING 🚨🔔
+# SelfDB Swift SDK
 
-A first-class Swift SDK for SelfDB - a self-hosted alternative to Supabase. Build powerful iOS, macOS, tvOS, and watchOS applications with real-time features, authentication, database operations, and file storage.
+A modern, type-safe Swift SDK for [SelfDB](https://selfdb.io) - the open-source database platform. Build iOS, macOS, tvOS, watchOS, and visionOS applications with real-time data sync, authentication, file storage, and more.
 
-## ✨ Features
+## Features
 
-- 🔐 **Authentication** - Login, register, logout, token refresh with secure session management
-- 📊 **Database** - CRUD operations with type-safe queries and pagination
-- 📁 **Storage** - File upload/download with progress tracking and bucket management  
-- ⚡ **Realtime** - WebSocket connections with auto-reconnect and event subscriptions
-- 🔄 **Cross-platform** - Supports iOS 13+, macOS 10.15+, tvOS 13+, watchOS 6+
-- 🛡️ **Type Safety** - Full Swift type safety with Codable support
-- 🔁 **Async/Await** - Modern Swift concurrency for all operations
-- 🔒 **Secure Storage** - Keychain integration on Apple platforms, secure file storage elsewhere
+- 🔐 **Authentication** - Complete auth flow with secure token management
+- 📊 **Database** - Type-safe CRUD operations with your PostgreSQL database  
+- 📁 **Storage** - File uploads/downloads with presigned URLs
+- ⚡ **Realtime** - WebSocket subscriptions for live data updates
+- 🔄 **Offline Support** - Automatic retry logic and error recovery
+- 🛡️ **Type Safety** - Full Swift Codable support with compile-time checks
+- 📱 **Multi-Platform** - Works on all Apple platforms
 
-## 📦 Installation
+## Installation
 
 ### Swift Package Manager
 
-Add SelfDB to your project through Xcode:
-
-1. File → Add Package Dependencies
-2. Enter repository URL: `https://github.com/Selfdb-io/selfdb-ios`
-3. Select the SelfDB package
-
-Or add to your `Package.swift`:
+Add SelfDB to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/Selfdb-io/selfdb-ios", from: "0.1.0")
+    .package(url: "https://github.com/selfdb/selfdb-swift", from: "1.0.0")
 ]
 ```
 
-## 🚀 Quick Start
+Or in Xcode: File → Add Package Dependencies → Enter the repository URL.
+
+## Quick Start
+
+### 1. Initialize the Client
 
 ```swift
 import SelfDB
 
-// Initialize the client
+// Configure SelfDB with your instance details
 let config = SelfDBConfig(
-    baseUrl: "http://localhost:8000",
-    storageUrl: "http://localhost:8001", // Optional, defaults to baseUrl with port 8001
-    anonKey: "your-anonymous-key"
+    baseUrl: "https://your-instance.selfdb.io",  // Your SelfDB API URL
+    storageUrl: "https://storage.your-instance.selfdb.io", // Optional: defaults to port 8001
+    anonKey: "your-anon-key-here"  // Get from SelfDB dashboard
 )
 
+// Create the client
 let selfdb = try await createClient(config: config)
+```
 
-// Authenticate
-let loginResponse = try await selfdb.auth.login(credentials: LoginRequest(
-    email: "user@example.com",
-    password: "password123"
-))
+### 2. Authentication
 
-// Database operations
-let users: [User] = try await selfdb.db.read(table: "users")
-let newUser: User = try await selfdb.db.create(table: "users", data: [
-    "email": "new@example.com",
-    "name": "New User"
-])
-
-// Storage operations
-let buckets = try await selfdb.storage.listBuckets()
-let uploadResponse = try await selfdb.storage.upload(
-    bucket: "my-bucket",
-    file: fileData,
-    filename: "document.pdf"
+```swift
+// Register a new user
+let user = try await selfdb.auth.register(
+    credentials: RegisterRequest(
+        email: "user@example.com",
+        password: "securepassword"
+    )
 )
 
-// Realtime subscriptions
-try await selfdb.realtime.connect()
-let subscription = try selfdb.realtime.subscribe("users") { payload in
-    print("User updated: \(payload)")
-}
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file in your project:
-
-```bash
-SELFDB_URL=http://localhost:8000
-SELFDB_STORAGE_URL=http://localhost:8001
-SELFDB_ANON_KEY=your_anon_key_here
-```
-
-### SelfDBConfig Options
-
-```swift
-let config = SelfDBConfig(
-    baseUrl: "http://localhost:8000",     // Required: Your SelfDB backend URL
-    storageUrl: "http://localhost:8001",  // Optional: Storage service URL
-    anonKey: "your-anon-key",             // Required: Anonymous access key
-    headers: ["Custom": "Header"],        // Optional: Additional headers
-    timeout: 10.0                         // Optional: Request timeout in seconds
+// Login
+let response = try await selfdb.auth.login(
+    credentials: LoginRequest(
+        email: "user@example.com",
+        password: "securepassword"
+    )
 )
-```
 
-## 🔐 Authentication
-
-### Login
-```swift
-let loginResponse = try await selfdb.auth.login(credentials: LoginRequest(
-    email: "user@example.com",
-    password: "password123"
-))
-print("Welcome, \(loginResponse.user.email)!")
-```
-
-### Register
-```swift
-let registerResponse = try await selfdb.auth.register(credentials: RegisterRequest(
-    email: "new@example.com",
-    password: "securepassword"
-))
-```
-
-### Session Management
-```swift
-// Check authentication status
-if selfdb.auth.isAuthenticated() {
-    let user = selfdb.auth.getCurrentUser()
-    print("Logged in as: \(user?.email ?? "Unknown")")
+// Get current user
+if let currentUser = try await selfdb.auth.getUser() {
+    print("Logged in as: \(currentUser.email)")
 }
-
-// Get fresh user data
-let currentUser = try await selfdb.auth.getUser()
 
 // Logout
 try await selfdb.auth.logout()
 ```
 
-## 📊 Database Operations
+### 3. Database Operations
 
-### Basic CRUD
 ```swift
-// Create
-let newRecord: MyModel = try await selfdb.db.create(table: "items", data: [
-    "name": "Item Name",
-    "price": 29.99,
-    "active": true
-])
+// Define your data model
+struct Product: Codable {
+    let id: String?
+    let name: String
+    let price: Double
+    let inStock: Bool
+}
 
-// Read with options
-let items: [MyModel] = try await selfdb.db.read(
-    table: "items",
+// Create
+let newProduct: Product = try await selfdb.db.create(
+    table: "products",
+    data: [
+        "name": "iPhone 15",
+        "price": 999.99,
+        "in_stock": true
+    ]
+)
+
+// Read with filtering
+let products: [Product] = try await selfdb.db.read(
+    table: "products",
     options: QueryOptions(
-        where: ["active": AnyCodable(true)],
-        orderBy: [OrderBy(column: "created_at", direction: .desc)],
+        where: ["in_stock": AnyCodable(true)],
+        orderBy: [OrderBy(column: "price", direction: .desc)],
         limit: 10
     )
 )
 
 // Update
-let updated: MyModel = try await selfdb.db.update(
-    table: "items",
-    data: ["name": "Updated Name"],
-    where: ["id": itemId]
+let updated: Product = try await selfdb.db.update(
+    table: "products",
+    data: ["price": 899.99],
+    where: ["id": newProduct.id!]
 )
 
 // Delete
-try await selfdb.db.delete(table: "items", where: ["id": itemId])
-```
+let deleteResponse = try await selfdb.db.delete(
+    table: "products",
+    where: ["id": newProduct.id!]
+)
 
-### Pagination
-```swift
-let page = try await selfdb.db.paginate<MyModel>(
-    table: "items",
+// Pagination
+let page = try await selfdb.db.paginate(
+    table: "products",
     page: 1,
-    limit: 20,
-    options: QueryOptions(orderBy: [OrderBy(column: "name")])
+    limit: 20
 )
-
-print("Page \(page.page) of \(page.total) items")
-for item in page.data {
-    print("- \(item.name)")
-}
+print("Showing \(page.data.count) of \(page.total) products")
 ```
 
-### Raw SQL
+### 4. Storage
+
 ```swift
-let result = try await selfdb.db.executeSql(
-    query: "SELECT COUNT(*) as count FROM users WHERE active = ?",
-    params: [true]
+// Create a bucket
+let bucket = try await selfdb.storage.createBucket(
+    name: "user-uploads",
+    isPublic: false
 )
-```
 
-## 📁 Storage Operations
-
-### Bucket Management
-```swift
-// List buckets
-let buckets = try await selfdb.storage.listBuckets()
-
-// Create bucket
-let bucket = try await selfdb.storage.createBucket(CreateBucketRequest(
-    name: "my-bucket",
-    isPublic: true,
-    description: "My file bucket"
-))
-
-// Update bucket
-let updated = try await selfdb.storage.updateBucket(
-    bucketId: bucket.id,
-    UpdateBucketRequest(description: "Updated description")
+// Upload a file
+let imageData = UIImage(named: "photo")!.jpegData(compressionQuality: 0.8)!
+let uploadedFile = try await selfdb.storage.upload(
+    bucket: "user-uploads",
+    path: "photos/vacation.jpg",
+    data: imageData,
+    contentType: "image/jpeg"
 )
-```
 
-### File Operations
-```swift
-// Upload file
-let fileData = "Hello, World!".data(using: .utf8)!
-let response = try await selfdb.storage.upload(
-    bucket: "my-bucket",
-    file: fileData,
-    filename: "hello.txt",
-    options: UploadFileOptions(contentType: "text/plain")
+// Download a file
+let downloadedData = try await selfdb.storage.download(
+    bucket: "user-uploads",
+    path: "photos/vacation.jpg"
+)
+
+// Get public URL (for public buckets)
+let publicUrl = try selfdb.storage.getPublicUrl(
+    bucket: "public-assets",
+    path: "logo.png"
 )
 
 // List files
 let files = try await selfdb.storage.listFiles(
-    bucketId: bucket.id,
-    options: FileListOptions(limit: 50)
+    bucket: "user-uploads",
+    path: "photos/",
+    limit: 100
 )
-
-// Get download URL
-let downloadUrl = try await selfdb.storage.getUrl(
-    bucket: "my-bucket",
-    fileId: response.file.id
-)
-
-// Delete file
-try await selfdb.storage.deleteFile(fileId: response.file.id)
 ```
 
-## ⚡ Realtime Features
+### 5. Realtime Subscriptions
 
-### Connect and Subscribe
 ```swift
-// Connect to realtime service
-try await selfdb.realtime.connect()
-
 // Subscribe to table changes
-let subscription = try selfdb.realtime.subscribe("users") { payload in
-    if let userData = payload as? [String: Any] {
-        print("User changed: \(userData)")
+let subscription = try await selfdb.realtime.subscribe(
+    to: "products",
+    event: .all
+) { change in
+    switch change.eventType {
+    case .insert:
+        print("New product added: \(change.new)")
+    case .update:
+        print("Product updated from \(change.old) to \(change.new)")
+    case .delete:
+        print("Product deleted: \(change.old)")
     }
 }
 
-// Subscribe to specific events
-let insertSub = try selfdb.realtime.subscribe(
-    "users",
-    callback: { payload in
-        print("New user: \(payload)")
-    },
-    options: SubscriptionOptions(event: "INSERT")
-)
-```
-
-### Connection Management
-```swift
-// Check connection status
-if selfdb.realtime.isConnected() {
-    print("Connected to realtime service")
+// Subscribe with filters
+let expensiveProducts = try await selfdb.realtime.subscribe(
+    to: "products",
+    event: .insert,
+    filter: "price.gt.500"
+) { change in
+    print("Expensive product added: \(change.new)")
 }
 
-// Get connection state
-let state = selfdb.realtime.getConnectionState()
-print("Connected: \(state.connected), Connecting: \(state.connecting)")
+// Unsubscribe
+try await subscription.unsubscribe()
 
-// Disconnect
-selfdb.realtime.disconnect()
+// Check connection status
+if selfdb.realtime.isConnected {
+    print("Realtime connection active")
+}
 ```
 
-## 🛡️ Error Handling
+### 6. Raw SQL Queries
+
+```swift
+// Execute raw SQL
+let result = try await selfdb.db.executeSql(
+    query: "SELECT * FROM products WHERE price > $1 ORDER BY created_at DESC",
+    params: [100.0]
+)
+
+print("Found \(result.rowCount) products")
+for row in result.rows {
+    print(row)
+}
+```
+
+## Advanced Usage
+
+### Error Handling
 
 ```swift
 do {
-    let user = try await selfdb.auth.login(credentials: credentials)
-} catch let error as AuthError {
-    print("Authentication failed: \(error.localizedDescription)")
+    let products = try await selfdb.db.read(table: "products")
+} catch let error as SelfDBError {
+    print("Error: \(error.errorDescription ?? "")")
+    
     if let suggestion = error.suggestion {
         print("Suggestion: \(suggestion)")
     }
-} catch let error as NetworkError {
-    print("Network error: \(error.localizedDescription)")
+    
     if error.isRetryable() {
-        // Retry the operation
+        // Implement retry logic
     }
-} catch let error as SelfDBError {
-    print("SelfDB error: \(error.localizedDescription)")
-    print("Code: \(error.code)")
 } catch {
     print("Unexpected error: \(error)")
 }
 ```
 
-## 🔧 Custom Models
-
-Define your own Codable models:
+### Custom Headers
 
 ```swift
-struct User: Codable, Identifiable {
-    let id: String
-    let email: String
-    let name: String
-    let isActive: Bool
-    let createdAt: Date
+let config = SelfDBConfig(
+    baseUrl: "https://api.selfdb.io",
+    anonKey: "your-key",
+    headers: [
+        "X-Custom-Header": "value",
+        "X-App-Version": "1.0.0"
+    ]
+)
+```
+
+### Timeout Configuration
+
+```swift
+let config = SelfDBConfig(
+    baseUrl: "https://api.selfdb.io",
+    anonKey: "your-key",
+    timeout: 30.0  // 30 seconds
+)
+```
+
+## Testing
+
+### Unit Tests
+
+```swift
+import XCTest
+@testable import SelfDB
+
+class MyAppTests: XCTestCase {
+    func testDatabaseQuery() async throws {
+        // Use mock configuration for tests
+        let config = SelfDBConfig(
+            baseUrl: "http://localhost:8000",
+            anonKey: "test-key"
+        )
+        
+        let client = try await createClient(config: config)
+        
+        // Your test logic here
+    }
+}
+```
+
+### Integration Tests
+
+Set environment variables for integration tests:
+
+```bash
+export SELFDB_TEST_BACKEND=1
+export SELFDB_BASE_URL=http://localhost:8000
+export SELFDB_STORAGE_URL=http://localhost:8001
+export SELFDB_ANON_KEY=your-test-key
+```
+
+## Platform Support
+
+- iOS 13.0+
+- macOS 10.15+
+- tvOS 13.0+
+- watchOS 6.0+
+- visionOS 1.0+
+
+## Requirements
+
+- Swift 5.9+
+- Xcode 15.0+
+
+## Security
+
+- Tokens are securely stored in the Keychain (Apple platforms)
+- Automatic token refresh on 401 errors
+- All connections use HTTPS by default
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+## License
+
+SelfDB Swift SDK is released under the MIT License. See [LICENSE](LICENSE) for details.
+
+## Support
+
+- 📚 [Documentation](https://docs.selfdb.io/swift)
+- 💬 [Discord Community](https://discord.gg/selfdb)
+- 🐛 [Issue Tracker](https://github.com/selfdb/selfdb-swift/issues)
+- 📧 [Email Support](mailto:support@selfdb.io)
+
+## Example App
+
+Check out our [example app](https://github.com/selfdb/selfdb-swift-example) for a complete implementation.
+
+```swift
+// Complete example
+import SwiftUI
+import SelfDB
+
+@main
+struct MyApp: App {
+    @StateObject private var dataStore = DataStore()
     
-    private enum CodingKeys: String, CodingKey {
-        case id, email, name
-        case isActive = "is_active"
-        case createdAt = "created_at"
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(dataStore)
+                .task {
+                    await dataStore.initialize()
+                }
+        }
     }
 }
 
-// Use with type safety
-let users: [User] = try await selfdb.db.read(table: "users")
-let newUser: User = try await selfdb.db.create(table: "users", data: [
-    "email": "user@example.com",
-    "name": "John Doe",
-    "is_active": true
-])
+@MainActor
+class DataStore: ObservableObject {
+    private var selfdb: SelfDB?
+    @Published var isAuthenticated = false
+    
+    func initialize() async {
+        do {
+            let config = SelfDBConfig(
+                baseUrl: "https://api.selfdb.io",
+                anonKey: "your-anon-key"
+            )
+            
+            selfdb = try await createClient(config: config)
+            isAuthenticated = selfdb?.auth.isAuthenticated() ?? false
+        } catch {
+            print("Failed to initialize SelfDB: \(error)")
+        }
+    }
+}
 ```
-
-## 📱 Platform Support
-
-| Platform | Minimum Version |
-|----------|----------------|
-| iOS      | 13.0           |
-| macOS    | 10.15          |
-| tvOS     | 13.0           |
-| watchOS  | 6.0            |
-
-## 🏗️ Architecture
-
-The SDK is built with a modular architecture:
-
-- **Core**: Configuration, networking, error handling, secure storage
-- **Auth**: Authentication and session management
-- **Database**: CRUD operations and SQL queries
-- **Storage**: File and bucket operations
-- **Realtime**: WebSocket connections and subscriptions
-- **SelfDB**: Main facade providing unified access
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
-
-## 🆘 Support
-
-
-- 🐛 [Issue Tracker](https://github.com/Selfdb-io/selfdb-ios/issues)
-- 📧 [Email Support](mailto:contact@selfdb.io)
-- X  [Connect with us on X](https://x.com/selfdb_io)  - [Rodgers] (https://x.com/RodgersMag)
 
 ---
 

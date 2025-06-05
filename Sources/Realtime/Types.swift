@@ -8,17 +8,26 @@ public struct RealtimeConfig {
     public let autoReconnect: Bool
     public let maxRetries: Int
     public let retryDelay: TimeInterval
+    public let reconnectInterval: TimeInterval
+    public let maxReconnectInterval: TimeInterval
+    public let heartbeatInterval: TimeInterval
     
     public init(
         url: String? = nil,
         autoReconnect: Bool = true,
         maxRetries: Int = 5,
-        retryDelay: TimeInterval = 1.0
+        retryDelay: TimeInterval = 1.0,
+        reconnectInterval: TimeInterval = 1.0,
+        maxReconnectInterval: TimeInterval = 30.0,
+        heartbeatInterval: TimeInterval = 30.0
     ) {
         self.url = url
         self.autoReconnect = autoReconnect
         self.maxRetries = maxRetries
         self.retryDelay = retryDelay
+        self.reconnectInterval = reconnectInterval
+        self.maxReconnectInterval = maxReconnectInterval
+        self.heartbeatInterval = heartbeatInterval
     }
 }
 

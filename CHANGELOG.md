@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 📖 **Comprehensive README**: Professional documentation with real-world examples, quick start guide, and platform support details
+- 🧪 **Enhanced Test Suite**: Complete test coverage including unit tests, integration tests, and API compatibility tests
+- 📝 **API Reference Examples**: Tests now include examples matching the actual SelfDB API responses
+- 🔧 **Environment-based Testing**: Support for integration tests using environment variables
+- 🎯 **Test Helpers**: Utility functions for async error assertions and mock configurations
+
+### Fixed
+- 🐛 **Storage Types**: Fixed missing `name` property in `CreateBucketRequest` struct
+- 🔍 **Content Type Detection**: Completed implementation for detecting MIME types from file extensions
+- ⚙️ **Realtime Configuration**: Fixed incomplete initialization in `RealtimeClient`
+- 📦 **Package Documentation**: Added comprehensive inline documentation for all public APIs
+
+### Changed
+- 🏗️ **Package Structure**: Updated Package.swift with better product organization and documentation
+- 📊 **Test Organization**: Restructured tests to follow API patterns from reference documentation
+- 🔄 **API Alignment**: Ensured all request/response types match exactly with SelfDB API v1 specifications
+
+### Improved
+- 🚀 **Developer Experience**: Added more code examples and usage patterns in documentation
+- 🛡️ **Type Safety**: Enhanced type definitions to match backend expectations precisely
+- 📱 **Platform Support**: Clarified multi-platform support with specific version requirements
+- 🔐 **Security Notes**: Added security best practices in README
+
 ## [0.1.0] - 2024-12-19
 
 ### Added

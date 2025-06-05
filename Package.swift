@@ -9,20 +9,21 @@ let package = Package(
         .iOS(.v13),
         .macOS(.v10_15),
         .tvOS(.v13),
-        .watchOS(.v6)
+        .watchOS(.v6),
+        .visionOS(.v1)
     ],
     products: [
-        // Main umbrella library
+        // Main product that exports all modules
         .library(
             name: "SelfDB",
             targets: ["SelfDB"]),
         
-        // Individual module libraries
+        // Individual module products for selective imports
         .library(
             name: "SelfDBCore",
             targets: ["Core"]),
         .library(
-            name: "SelfDBAuth",
+            name: "SelfDBAuth", 
             targets: ["Auth"]),
         .library(
             name: "SelfDBDatabase",
@@ -34,55 +35,47 @@ let package = Package(
             name: "SelfDBRealtime",
             targets: ["Realtime"]),
     ],
+    dependencies: [
+        // No external dependencies - pure Swift implementation
+    ],
     targets: [
-        // Core target with shared utilities
+        // Core module with shared types and utilities
         .target(
             name: "Core",
-            dependencies: []),
-            
-        // Authentication target
+            dependencies: [],
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]),
+        
+        // Auth module
         .target(
             name: "Auth",
             dependencies: ["Core"]),
-            
-        // Database target
+        
+        // Database module
         .target(
             name: "Database",
             dependencies: ["Core", "Auth"]),
-            
-        // Storage target
+        
+        // Storage module
         .target(
             name: "Storage",
             dependencies: ["Core", "Auth"]),
-            
-        // Realtime target
+        
+        // Realtime module
         .target(
             name: "Realtime",
             dependencies: ["Core", "Auth"]),
         
-        // Main umbrella target
+        // Main SelfDB module that imports all others
         .target(
             name: "SelfDB",
             dependencies: ["Core", "Auth", "Database", "Storage", "Realtime"]),
-            
+        
         // Test targets
         .testTarget(
             name: "SelfDBTests",
             dependencies: ["SelfDB"]),
-        .testTarget(
-            name: "CoreTests",
-            dependencies: ["Core"]),
-        .testTarget(
-            name: "AuthTests",
-            dependencies: ["Auth"]),
-        .testTarget(
-            name: "DatabaseTests",
-            dependencies: ["Database"]),
-        .testTarget(
-            name: "StorageTests",
-            dependencies: ["Storage"]),
-        .testTarget(
-            name: "RealtimeTests",
-            dependencies: ["Realtime"]),
-    ]
+    ],
+    swiftLanguageVersions: [.v5]
 )

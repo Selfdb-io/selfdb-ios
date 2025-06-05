@@ -26,8 +26,9 @@ public final class RealtimeClient: NSObject {
         self.config = RealtimeConfig(
             url: wsUrl,
             autoReconnect: config.autoReconnect,
-            maxRetries: config.maxRetries,
-            retryDelay: config.retryDelay
+            reconnectInterval: config.reconnectInterval,
+            maxReconnectInterval: config.maxReconnectInterval,
+            heartbeatInterval: config.heartbeatInterval
         )
         
         super.init()

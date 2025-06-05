@@ -12,9 +12,10 @@ DerivedData/
 CLAUDE.md
 /Storage.MD
 /APPTABLES.MD
-selfdb-swift-app/
+*selfdb-swift-app/*
 /expo-logs.md
 /JS-SDK.MD
 /expo-app.md
 .claude/
 UI/
+/selfdbapireference.md

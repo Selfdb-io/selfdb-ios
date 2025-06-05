@@ -46,6 +46,8 @@ public final class StorageClient {
         // Document types
         else if lowercaseFilename.hasSuffix(".pdf") {
             return "application/pdf"
+        } else if lowercaseFilename.hasSuffix(".doc") || lowercaseFilename.hasSuffix(".docx") {
+            return "application/msword"
         } else if lowercaseFilename.hasSuffix(".txt") {
             return "text/plain"
         } else if lowercaseFilename.hasSuffix(".json") {
@@ -59,8 +61,42 @@ public final class StorageClient {
     
     // MARK: - Bucket Operations
     
+    /// Create a new storage bucket
+    /// - Parameters:
+    ///   - name: Bucket name
+    ///   - isPublic: Whether the bucket is public
+    ///   - description: Optional bucket description
+    /// - Returns: Created bucket information
+    /// - Throws: SelfDB errors
+    public func createBucket(
+        name: String,
+        isPublic: Bool = false,
+        description: String? = nil
+    ) async throws -> BucketInfo {
+        let request = CreateBucketRequest(
+            name: name,
+            isPublic: isPublic,
+            description: description
+        )
+        
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .POST,
+                path: "/api/v1/buckets",
+                body: request
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to create bucket: \(error.localizedDescription)",
+                code: "CREATE_BUCKET_ERROR",
+                suggestion: "Check bucket name and permissions"
+            )
+        }
+    }
+    
     /// List all buckets
-    /// - Returns: Array of buckets with stats
+    /// - Returns: Array of bucket information
     /// - Throws: SelfDB errors
     public func listBuckets() async throws -> [Bucket] {
         do {
@@ -72,38 +108,17 @@ public final class StorageClient {
             if error is SelfDBError { throw error }
             throw SelfDBError(
                 message: "Failed to list buckets: \(error.localizedDescription)",
-                code: "BUCKET_LIST_ERROR",
-                suggestion: "Check your authentication and permissions"
+                code: "LIST_BUCKETS_ERROR",
+                suggestion: "Check your authentication"
             )
         }
     }
     
-    /// Create a new bucket
-    /// - Parameter request: Bucket creation request
-    /// - Returns: Created bucket
-    /// - Throws: SelfDB errors
-    public func createBucket(_ request: CreateBucketRequest) async throws -> Bucket {
-        do {
-            return try await authClient.makeAuthenticatedRequest(
-                method: .POST,
-                path: "/api/v1/buckets",
-                body: request
-            )
-        } catch {
-            if error is SelfDBError { throw error }
-            throw SelfDBError(
-                message: "Failed to create bucket: \(error.localizedDescription)",
-                code: "BUCKET_CREATE_ERROR",
-                suggestion: "Check bucket name uniqueness and permissions"
-            )
-        }
-    }
-    
-    /// Get bucket by ID
+    /// Get bucket details
     /// - Parameter bucketId: Bucket ID
-    /// - Returns: Bucket details
+    /// - Returns: Detailed bucket information
     /// - Throws: SelfDB errors
-    public func getBucket(bucketId: String) async throws -> Bucket {
+    public func getBucket(bucketId: String) async throws -> BucketDetails {
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .GET,
@@ -112,20 +127,33 @@ public final class StorageClient {
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
-                message: "Failed to get bucket: \(error.localizedDescription)",
-                code: "BUCKET_GET_ERROR",
+                message: "Failed to get bucket details: \(error.localizedDescription)",
+                code: "GET_BUCKET_ERROR",
                 suggestion: "Check bucket ID and permissions"
             )
         }
     }
     
-    /// Update bucket
+    /// Update bucket information
     /// - Parameters:
     ///   - bucketId: Bucket ID
-    ///   - request: Update request
-    /// - Returns: Updated bucket
+    ///   - name: New bucket name (optional)
+    ///   - isPublic: New public status (optional)
+    ///   - description: New description (optional)
+    /// - Returns: Updated bucket information
     /// - Throws: SelfDB errors
-    public func updateBucket(bucketId: String, _ request: UpdateBucketRequest) async throws -> Bucket {
+    public func updateBucket(
+        bucketId: String,
+        name: String? = nil,
+        isPublic: Bool? = nil,
+        description: String? = nil
+    ) async throws -> BucketInfo {
+        let request = UpdateBucketRequest(
+            name: name,
+            isPublic: isPublic,
+            description: description
+        )
+        
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .PUT,
@@ -136,29 +164,27 @@ public final class StorageClient {
             if error is SelfDBError { throw error }
             throw SelfDBError(
                 message: "Failed to update bucket: \(error.localizedDescription)",
-                code: "BUCKET_UPDATE_ERROR",
+                code: "UPDATE_BUCKET_ERROR",
                 suggestion: "Check bucket ID and permissions"
             )
         }
     }
     
-    /// Delete bucket
+    /// Delete a bucket
     /// - Parameter bucketId: Bucket ID
-    /// - Returns: True if successful
     /// - Throws: SelfDB errors
-    public func deleteBucket(bucketId: String) async throws -> Bool {
+    public func deleteBucket(bucketId: String) async throws {
         do {
             let _: EmptyResponse = try await authClient.makeAuthenticatedRequest(
                 method: .DELETE,
                 path: "/api/v1/buckets/\(bucketId)"
             )
-            return true
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
                 message: "Failed to delete bucket: \(error.localizedDescription)",
-                code: "BUCKET_DELETE_ERROR",
-                suggestion: "Check bucket ID and permissions"
+                code: "DELETE_BUCKET_ERROR",
+                suggestion: "Ensure bucket is empty before deletion"
             )
         }
     }
@@ -273,10 +299,13 @@ public final class StorageClient {
         options: UploadFileOptions = UploadFileOptions()
     ) async throws -> FileMetadata {
         do {
+            // Determine content type
+            let contentType = options.contentType ?? detectContentType(from: filename)
+            
             // Step 1: Initiate upload to get presigned URL
             let initiateRequest = FileUploadInitiateRequest(
                 filename: filename,
-                contentType: options.contentType,
+                contentType: contentType,
                 size: fileData.count,
                 bucketId: bucketId
             )
@@ -291,7 +320,7 @@ public final class StorageClient {
             try await uploadToPresignedUrl(
                 presignedInfo: initiateResponse.presignedUploadInfo,
                 fileData: fileData,
-                contentType: options.contentType
+                contentType: contentType
             )
             
             // Return the file metadata
@@ -441,159 +470,273 @@ public final class StorageClient {
     /// List files in a bucket
     /// - Parameters:
     ///   - bucketId: Bucket ID
-    ///   - options: List options
+    ///   - path: Optional path prefix
+    ///   - limit: Maximum number of files to return
     /// - Returns: Array of file metadata
     /// - Throws: SelfDB errors
-    public func listFiles(bucketId: String, options: FileListOptions = FileListOptions()) async throws -> [FileMetadata] {
-        var params: [String: String] = [:]
-        
-        if let limit = options.limit {
-            params["limit"] = String(limit)
+    public func listFiles(
+        bucketId: String,
+        path: String? = nil,
+        limit: Int = 100
+    ) async throws -> [FileMetadata] {
+        var queryParams = "?limit=\(limit)"
+        if let path = path {
+            queryParams += "&prefix=\(path)"
         }
-        
-        if let offset = options.offset {
-            params["skip"] = String(offset)
-        }
-        
-        let queryString = params.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-        let path = "/api/v1/buckets/\(bucketId)/files" + (queryString.isEmpty ? "" : "?\(queryString)")
         
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .GET,
-                path: path
+                path: "/api/v1/buckets/\(bucketId)/files\(queryParams)"
             )
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
                 message: "Failed to list files: \(error.localizedDescription)",
-                code: "FILE_LIST_ERROR",
+                code: "LIST_FILES_ERROR",
                 suggestion: "Check bucket ID and permissions"
             )
         }
     }
     
-    /// Delete a file by ID
-    /// - Parameter fileId: File ID
-    /// - Returns: True if successful
+    /// Initiate file upload
+    /// - Parameters:
+    ///   - filename: Name of the file
+    ///   - contentType: MIME type of the file
+    ///   - size: File size in bytes
+    ///   - bucketId: Target bucket ID
+    /// - Returns: Upload information including presigned URL
     /// - Throws: SelfDB errors
-    public func deleteFile(fileId: String) async throws -> Bool {
+    public func initiateUpload(
+        filename: String,
+        contentType: String,
+        size: Int64,
+        bucketId: String
+    ) async throws -> InitiateUploadResponse {
+        let request = InitiateUploadRequest(
+            filename: filename,
+            contentType: contentType,
+            size: size,
+            bucketId: bucketId
+        )
+        
         do {
-            let _: EmptyResponse = try await authClient.makeAuthenticatedRequest(
-                method: .DELETE,
-                path: "/api/v1/files/\(fileId)"
+            return try await authClient.makeAuthenticatedRequest(
+                method: .POST,
+                path: "/api/v1/files/initiate-upload",
+                body: request
             )
-            return true
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
-                message: "Failed to delete file: \(error.localizedDescription)",
-                code: "FILE_DELETE_ERROR",
+                message: "Failed to initiate upload: \(error.localizedDescription)",
+                code: "INITIATE_UPLOAD_ERROR",
+                suggestion: "Check file parameters and bucket permissions"
+            )
+        }
+    }
+    
+    /// Upload file data to presigned URL
+    /// - Parameters:
+    ///   - url: Presigned upload URL
+    ///   - data: File data
+    ///   - contentType: MIME type
+    /// - Throws: SelfDB errors
+    public func uploadToPresignedUrl(
+        url: String,
+        data: Data,
+        contentType: String
+    ) async throws {
+        guard let uploadUrl = URL(string: url) else {
+            throw SelfDBError(
+                message: "Invalid upload URL",
+                code: "INVALID_URL"
+            )
+        }
+        
+        var request = URLRequest(url: uploadUrl)
+        request.httpMethod = "PUT"
+        request.httpBody = data
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        
+        // Add API key header if it's a storage service URL
+        if url.contains(config.storageUrl) {
+            request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
+        }
+        
+        do {
+            let session = URLSession.shared
+            let (_, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  200...299 ~= httpResponse.statusCode else {
+                throw SelfDBError(
+                    message: "Upload failed",
+                    code: "UPLOAD_FAILED"
+                )
+            }
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to upload file: \(error.localizedDescription)",
+                code: "UPLOAD_ERROR",
+                suggestion: "Check network connection and file size"
+            )
+        }
+    }
+    
+    /// Convenience method to upload a file
+    /// - Parameters:
+    ///   - bucket: Bucket name or ID
+    ///   - path: File path within bucket
+    ///   - data: File data
+    ///   - contentType: MIME type (auto-detected if nil)
+    /// - Returns: File metadata
+    /// - Throws: SelfDB errors
+    public func upload(
+        bucket: String,
+        path: String,
+        data: Data,
+        contentType: String? = nil
+    ) async throws -> FileMetadata {
+        // Detect content type if not provided
+        let mimeType = contentType ?? detectContentType(from: path)
+        
+        // First, get bucket ID if bucket name was provided
+        let bucketId: String
+        if UUID(uuidString: bucket) != nil {
+            bucketId = bucket
+        } else {
+            // Assume it's a bucket name, need to list buckets to find ID
+            let buckets = try await listBuckets()
+            guard let bucketInfo = buckets.first(where: { $0.name == bucket }) else {
+                throw SelfDBError(
+                    message: "Bucket '\(bucket)' not found",
+                    code: "BUCKET_NOT_FOUND"
+                )
+            }
+            bucketId = bucketInfo.id
+        }
+        
+        // Initiate upload
+        let uploadInfo = try await initiateUpload(
+            filename: path,
+            contentType: mimeType,
+            size: Int64(data.count),
+            bucketId: bucketId
+        )
+        
+        // Upload to presigned URL
+        try await uploadToPresignedUrl(
+            url: uploadInfo.presignedUploadInfo.uploadUrl,
+            data: data,
+            contentType: mimeType
+        )
+        
+        return uploadInfo.fileMetadata
+    }
+    
+    /// Get file download information
+    /// - Parameter fileId: File ID
+    /// - Returns: Download information including URL
+    /// - Throws: SelfDB errors
+    public func getDownloadInfo(fileId: String) async throws -> DownloadInfo {
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .GET,
+                path: "/api/v1/files/\(fileId)/download-info"
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to get download info: \(error.localizedDescription)",
+                code: "DOWNLOAD_INFO_ERROR",
                 suggestion: "Check file ID and permissions"
             )
         }
     }
     
-    /// Get file download URL
-    /// - Parameter fileId: File ID
-    /// - Returns: Download URL
+    /// Download file data
+    /// - Parameters:
+    ///   - bucket: Bucket name
+    ///   - path: File path within bucket
+    /// - Returns: File data
     /// - Throws: SelfDB errors
-    public func getDownloadUrl(fileId: String) async throws -> String {
-        do {
-            let response: FileDownloadInfoResponse = try await authClient.makeAuthenticatedRequest(
-                method: .GET,
-                path: "/api/v1/files/\(fileId)/download-info"
+    public func download(bucket: String, path: String) async throws -> Data {
+        // Get file by path
+        let bucketId: String
+        if UUID(uuidString: bucket) != nil {
+            bucketId = bucket
+        } else {
+            let buckets = try await listBuckets()
+            guard let bucketInfo = buckets.first(where: { $0.name == bucket }) else {
+                throw SelfDBError(
+                    message: "Bucket '\(bucket)' not found",
+                    code: "BUCKET_NOT_FOUND"
+                )
+            }
+            bucketId = bucketInfo.id
+        }
+        
+        // List files to find the one with matching path
+        let files = try await listFiles(bucketId: bucketId)
+        guard let file = files.first(where: { $0.filename == path || $0.objectName == path }) else {
+            throw SelfDBError(
+                message: "File '\(path)' not found in bucket '\(bucket)'",
+                code: "FILE_NOT_FOUND"
             )
-            return response.downloadUrl
+        }
+        
+        // Get download URL
+        let downloadInfo = try await getDownloadInfo(fileId: file.id)
+        
+        // Download from URL
+        guard let url = URL(string: downloadInfo.downloadUrl) else {
+            throw SelfDBError(
+                message: "Invalid download URL",
+                code: "INVALID_URL"
+            )
+        }
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            throw SelfDBError(
+                message: "Download failed",
+                code: "DOWNLOAD_FAILED"
+            )
+        }
+        
+        return data
+    }
+    
+    /// Delete a file
+    /// - Parameter fileId: File ID
+    /// - Throws: SelfDB errors
+    public func deleteFile(fileId: String) async throws {
+        do {
+            let _: EmptyResponse = try await authClient.makeAuthenticatedRequest(
+                method: .DELETE,
+                path: "/api/v1/files/\(fileId)"
+            )
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
-                message: "Failed to get download URL: \(error.localizedDescription)",
-                code: "DOWNLOAD_URL_ERROR",
-                suggestion: "Check the file ID and permissions"
+                message: "Failed to delete file: \(error.localizedDescription)",
+                code: "DELETE_FILE_ERROR",
+                suggestion: "Check file ID and permissions"
             )
         }
     }
     
-    /// Get file view URL
-    /// - Parameter fileId: File ID
-    /// - Returns: View URL
+    /// Get public URL for a file (only works for public buckets)
+    /// - Parameters:
+    ///   - bucket: Bucket name
+    ///   - path: File path
+    /// - Returns: Public URL
     /// - Throws: SelfDB errors
-    public func getViewUrl(fileId: String) async throws -> String {
-        do {
-            let response: FileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
-                method: .GET,
-                path: "/api/v1/files/\(fileId)/view-info"
-            )
-            return response.viewUrl
-        } catch {
-            if error is SelfDBError { throw error }
-            throw SelfDBError(
-                message: "Failed to get view URL: \(error.localizedDescription)",
-                code: "VIEW_URL_ERROR",
-                suggestion: "Check the file ID and permissions"
-            )
-        }
-    }
-    
-    /// Get public file view URL (for public buckets) - matches JS SDK getPublicFileViewInfo
-    /// - Parameter fileId: File ID
-    /// - Returns: Public view URL
-    /// - Throws: SelfDB errors
-    public func getPublicViewUrl(fileId: String) async throws -> String {
-        do {
-            let response: FileViewInfoResponse = try await authClient.makeAuthenticatedRequest(
-                method: .GET,
-                path: "/api/v1/files/public/\(fileId)/view-info"
-            )
-            return response.viewUrl
-        } catch {
-            if error is SelfDBError { throw error }
-            throw SelfDBError(
-                message: "Failed to get public view URL: \(error.localizedDescription)",
-                code: "PUBLIC_VIEW_URL_ERROR",
-                suggestion: "Check the file ID and ensure it's in a public bucket"
-            )
-        }
-    }
-    
-    /// Get public file view info (for public buckets) - matches JS SDK getPublicFileViewInfo
-    /// - Parameter fileId: File ID
-    /// - Returns: FileViewInfoResponse with metadata and view URL
-    /// - Throws: SelfDB errors
-    public func getPublicFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
-        do {
-            return try await authClient.makeAuthenticatedRequest(
-                method: .GET,
-                path: "/api/v1/files/public/\(fileId)/view-info"
-            )
-        } catch {
-            if error is SelfDBError { throw error }
-            throw SelfDBError(
-                message: "Failed to get public file view info: \(error.localizedDescription)",
-                code: "PUBLIC_VIEW_URL_ERROR",
-                suggestion: "Check the file ID and ensure it's in a public bucket"
-            )
-        }
-    }
-    
-    /// Get file view info (authenticated) - matches JS SDK getFileViewInfo
-    /// - Parameter fileId: File ID
-    /// - Returns: FileViewInfoResponse with metadata and view URL
-    /// - Throws: SelfDB errors
-    public func getFileViewInfo(fileId: String) async throws -> FileViewInfoResponse {
-        do {
-            return try await authClient.makeAuthenticatedRequest(
-                method: .GET,
-                path: "/api/v1/files/\(fileId)/view-info"
-            )
-        } catch {
-            if error is SelfDBError { throw error }
-            throw SelfDBError(
-                message: "Failed to get file view info: \(error.localizedDescription)",
-                code: "VIEW_URL_ERROR",
-                suggestion: "Check the file ID and permissions"
-            )
-        }
+    public func getPublicUrl(bucket: String, path: String) throws -> String {
+        return "\(config.storageUrl)/files/download/\(bucket)/\(path)"
     }
 }
