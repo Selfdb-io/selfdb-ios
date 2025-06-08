@@ -226,32 +226,6 @@ public struct IndexInfo: Codable {
     }
 }
 
-/// SQL query request
-public struct SqlQueryRequest: Codable {
-    public let query: String
-    public let params: [AnyCodable]?
-    
-    public init(query: String, params: [AnyCodable]? = nil) {
-        self.query = query
-        self.params = params
-    }
-}
-
-/// SQL query response
-public struct SqlQueryResponse: Codable {
-    public let columns: [String]
-    public let rows: [[AnyCodable]]
-    public let rowCount: Int
-    public let duration: Double
-    
-    private enum CodingKeys: String, CodingKey {
-        case columns
-        case rows
-        case rowCount = "row_count"
-        case duration
-    }
-}
-
 /// Delete operation response
 public struct DeleteResponse: Codable {
     public let message: String
@@ -261,4 +235,118 @@ public struct DeleteResponse: Codable {
         case message
         case deletedData = "deleted_data"
     }
+}
+
+/// Column definition for table creation
+public struct ColumnDefinition: Codable {
+    public let name: String
+    public let type: String
+    public let nullable: Bool
+    public let primaryKey: Bool?
+    public let `default`: String?
+    public let description: String?
+    
+    public init(
+        name: String,
+        type: String,
+        nullable: Bool = true,
+        primaryKey: Bool? = nil,
+        default: String? = nil,
+        description: String? = nil
+    ) {
+        self.name = name
+        self.type = type
+        self.nullable = nullable
+        self.primaryKey = primaryKey
+        self.default = `default`
+        self.description = description
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case type
+        case nullable
+        case primaryKey = "primary_key"
+        case `default`
+        case description
+    }
+}
+
+/// Table creation request
+public struct CreateTableRequest: Codable {
+    public let name: String
+    public let description: String?
+    public let ifNotExists: Bool
+    public let columns: [ColumnDefinition]
+    
+    public init(
+        name: String,
+        description: String? = nil,
+        ifNotExists: Bool = true,
+        columns: [ColumnDefinition]
+    ) {
+        self.name = name
+        self.description = description
+        self.ifNotExists = ifNotExists
+        self.columns = columns
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case description
+        case ifNotExists = "if_not_exists"
+        case columns
+    }
+}
+
+/// Table creation response
+public struct CreateTableResponse: Codable {
+    public let message: String
+    public let created: Bool
+    public let name: String
+    public let columns: [CreatedColumnInfo]
+    
+    public struct CreatedColumnInfo: Codable {
+        public let name: String
+        public let type: String
+        public let nullable: Bool
+        public let `default`: String?
+        public let primaryKey: Bool
+        public let description: String?
+        public let isForeignKey: Bool
+        public let referencesTable: String?
+        public let referencesColumn: String?
+        
+        private enum CodingKeys: String, CodingKey {
+            case name
+            case type
+            case nullable
+            case `default`
+            case primaryKey = "primary_key"
+            case description
+            case isForeignKey = "is_foreign_key"
+            case referencesTable = "references_table"
+            case referencesColumn = "references_column"
+        }
+    }
+}
+
+/// Table update request
+public struct UpdateTableRequest: Codable {
+    public let description: String?
+    
+    public init(description: String?) {
+        self.description = description
+    }
+}
+
+/// Table update response
+public struct UpdateTableResponse: Codable {
+    public let message: String
+    public let description: String?
+}
+
+/// Table deletion response
+public struct DeleteTableResponse: Codable {
+    public let message: String
 }

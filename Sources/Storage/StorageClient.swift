@@ -730,16 +730,6 @@ public final class StorageClient {
         }
     }
     
-    /// Get public URL for a file (only works for public buckets)
-    /// - Parameters:
-    ///   - bucket: Bucket name
-    ///   - path: File path
-    /// - Returns: Public URL
-    /// - Throws: SelfDB errors
-    public func getPublicUrl(bucket: String, path: String) throws -> String {
-        return "\(config.storageUrl)/files/download/\(bucket)/\(path)"
-    }
-    
     /// Get file view information
     /// - Parameter fileId: File ID
     /// - Returns: File view information including URL

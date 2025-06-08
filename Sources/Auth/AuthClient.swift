@@ -273,6 +273,31 @@ public final class AuthClient {
         return authState.tokens
     }
     
+    /// Change password for the current user
+    /// - Parameters:
+    ///   - currentPassword: The user's current password
+    ///   - newPassword: The new password to set
+    /// - Returns: True if password was changed successfully
+    /// - Throws: AuthError if not authenticated or password change fails
+    public func changePassword(currentPassword: String, newPassword: String) async throws -> Bool {
+        guard authState.isAuthenticated else {
+            throw AuthError("Not authenticated")
+        }
+        
+        let changePasswordRequest = ChangePasswordRequest(
+            currentPassword: currentPassword,
+            newPassword: newPassword
+        )
+        
+        let success: Bool = try await makeAuthenticatedRequest(
+            method: .PUT,
+            path: "/api/v1/users/me/password",
+            body: changePasswordRequest
+        )
+        
+        return success
+    }
+    
     /// Make an authenticated HTTP request
     /// - Parameters:
     ///   - method: HTTP method

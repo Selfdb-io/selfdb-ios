@@ -19,17 +19,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 🔍 **Content Type Detection**: Completed implementation for detecting MIME types from file extensions
 - ⚙️ **Realtime Configuration**: Fixed incomplete initialization in `RealtimeClient`
 - 📦 **Package Documentation**: Added comprehensive inline documentation for all public APIs
+- 🔄 **Type Conflicts**: Resolved `AnyCodable` duplicate definitions between Storage and Database modules
+- 🌐 **Storage Upload**: Fixed presigned URL upload to match JS SDK pattern exactly
+- 📡 **Network Errors**: Improved error handling for presigned URL uploads with detailed logging
 
 ### Changed
 - 🏗️ **Package Structure**: Updated Package.swift with better product organization and documentation
 - 📊 **Test Organization**: Restructured tests to follow API patterns from reference documentation
 - 🔄 **API Alignment**: Ensured all request/response types match exactly with SelfDB API v1 specifications
+- 🔐 **Auth Registration**: Modified registration to return `User` directly instead of wrapped response
+- 📤 **Storage Upload**: Updated upload method to use two-step process (initiate + presigned URL) matching JS SDK
+- 🗄️ **Database Client**: Replaced internal `AnyCodable` with private `AnyEncodable` to avoid conflicts
 
 ### Improved
 - 🚀 **Developer Experience**: Added more code examples and usage patterns in documentation
 - 🛡️ **Type Safety**: Enhanced type definitions to match backend expectations precisely
 - 📱 **Platform Support**: Clarified multi-platform support with specific version requirements
 - 🔐 **Security Notes**: Added security best practices in README
+- 🪵 **Logging**: Enhanced logging for storage operations including presigned URL uploads
+- 🎯 **Error Messages**: More descriptive error messages with actionable suggestions
+- 📊 **Storage API**: Better alignment with JS SDK patterns for consistency across platforms
 
 ## [0.1.0] - 2024-12-19
 

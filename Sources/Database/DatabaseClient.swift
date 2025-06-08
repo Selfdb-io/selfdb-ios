@@ -327,33 +327,87 @@ public final class DatabaseClient {
         }
     }
     
-    /// Execute raw SQL query
+    /// Create a new table in the database
     /// - Parameters:
-    ///   - query: SQL query string
-    ///   - params: Query parameters
-    /// - Returns: SQL query response
+    ///   - name: Table name
+    ///   - description: Optional table description
+    ///   - columns: Column definitions
+    ///   - ifNotExists: Whether to use IF NOT EXISTS clause
+    /// - Returns: Table creation response
     /// - Throws: SelfDB errors
-    public func executeSql(
-        query: String,
-        params: [Any] = []
-    ) async throws -> SqlQueryResponse {
-        let request = SqlQueryRequest(
-            query: query,
-            params: params.map { AnyCodable($0) }
+    public func createTable(
+        name: String,
+        description: String? = nil,
+        columns: [ColumnDefinition],
+        ifNotExists: Bool = true
+    ) async throws -> CreateTableResponse {
+        let request = CreateTableRequest(
+            name: name,
+            description: description,
+            ifNotExists: ifNotExists,
+            columns: columns
         )
         
         do {
             return try await authClient.makeAuthenticatedRequest(
                 method: .POST,
-                path: "/api/v1/sql/query",
+                path: "/api/v1/tables",
                 body: request
             )
         } catch {
             if error is SelfDBError { throw error }
             throw SelfDBError(
-                message: "SQL execution failed: \(error.localizedDescription)",
-                code: "SQL_ERROR",
-                suggestion: "Check your SQL syntax and parameters"
+                message: "Failed to create table: \(error.localizedDescription)",
+                code: "CREATE_TABLE_ERROR",
+                suggestion: "Check your table definition and column types"
+            )
+        }
+    }
+    
+    /// Update table metadata (e.g., description)
+    /// - Parameters:
+    ///   - tableName: Name of the table to update
+    ///   - description: New description for the table
+    /// - Returns: Update response
+    /// - Throws: SelfDB errors
+    public func updateTable(
+        tableName: String,
+        description: String?
+    ) async throws -> UpdateTableResponse {
+        let request = UpdateTableRequest(description: description)
+        
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .PUT,
+                path: "/api/v1/tables/\(tableName)",
+                body: request
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to update table: \(error.localizedDescription)",
+                code: "UPDATE_TABLE_ERROR",
+                suggestion: "Check that the table '\(tableName)' exists"
+            )
+        }
+    }
+    
+    /// Delete a table from the database
+    /// - Parameter tableName: Name of the table to delete
+    /// - Returns: Deletion response
+    /// - Throws: SelfDB errors
+    public func deleteTable(tableName: String) async throws -> DeleteTableResponse {
+        do {
+            return try await authClient.makeAuthenticatedRequest(
+                method: .DELETE,
+                path: "/api/v1/tables/\(tableName)"
+            )
+        } catch {
+            if error is SelfDBError { throw error }
+            throw SelfDBError(
+                message: "Failed to delete table: \(error.localizedDescription)",
+                code: "DELETE_TABLE_ERROR",
+                suggestion: "Check that the table '\(tableName)' exists and you have permission to delete it"
             )
         }
     }

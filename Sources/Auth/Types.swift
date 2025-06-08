@@ -126,3 +126,19 @@ public struct RefreshTokenRequest: Codable {
         self.refreshToken = refreshToken
     }
 }
+
+/// Password change request
+public struct ChangePasswordRequest: Codable {
+    public let currentPassword: String
+    public let newPassword: String
+    
+    private enum CodingKeys: String, CodingKey {
+        case currentPassword = "current_password"
+        case newPassword = "new_password"
+    }
+    
+    public init(currentPassword: String, newPassword: String) {
+        self.currentPassword = currentPassword
+        self.newPassword = newPassword
+    }
+}
