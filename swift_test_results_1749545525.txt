@@ -1,0 +1,39 @@
+SelfDB Swift SDK Integration Test Results
+Test Date: 2025-06-10 10:52:05
+Results File: swift_test_results_1749545525.txt
+================================================================================
+
+🚀 Starting SelfDB Swift SDK Integration Tests
+Backend URL: http://localhost:8000/api/v1
+Storage URL: http://localhost:8001
+API Key: f5b220a570cdce9f452d...
+
+📝 Note: These tests run against a real SelfDB instance
+================================================================================
+
+
+============================================================
+Testing: Real Authentication Against SelfDB Instance
+============================================================
+✅ PASS: User Registration (Status: 200)
+✅ PASS: User Login (Status: 200)
+✅ PASS: Refresh Token (Status: 200)
+
+================================================================================
+🏁 Swift SDK Integration Testing Complete!
+================================================================================
+
+📊 TEST SUMMARY
+================================================================================
+Total Tests: 3
+Passed: 3 ✅
+Failed: 0 ❌
+Success Rate: 100.0%
+
+
+✅ PASSED TESTS:
+  - User Registration
+  - User Login
+  - Refresh Token
+
+📄 Test results saved to: swift_test_results_1749545525.txt

@@ -1,0 +1,99 @@
+SelfDB Swift SDK Integration Test Results
+Test Date: 2025-06-10 10:52:03
+Results File: swift_test_results_1749545523.txt
+================================================================================
+
+🚀 Starting SelfDB Swift SDK Integration Tests
+Backend URL: http://localhost:8000/api/v1
+Storage URL: http://localhost:8001
+API Key: f5b220a570cdce9f452d...
+
+📝 Note: These tests run against a real SelfDB instance
+================================================================================
+
+
+============================================================
+Testing: SelfDB Swift SDK Basic Structure Tests
+============================================================
+✅ PASS: Configuration Creation
+✅ PASS: Client Initialization
+✅ PASS: Registration Request Structure
+✅ PASS: Login Request Structure
+
+============================================================
+Testing: Real Authentication Against SelfDB Instance
+============================================================
+✅ PASS: User Registration (Status: 200)
+✅ PASS: User Login (Status: 200)
+✅ PASS: Refresh Token (Status: 200)
+
+============================================================
+Testing: Comprehensive User Management
+============================================================
+✅ PASS: Get Current User (Status: 200)
+
+============================================================
+Testing: Comprehensive Database Operations
+============================================================
+✅ PASS: List Tables (Status: 200)
+✅ PASS: Get Table Details (Status: 200)
+✅ PASS: Get Table Data (Status: 200)
+✅ PASS: Create Test Table (Status: 201)
+✅ PASS: Insert Test Data (Status: 200)
+✅ PASS: Update Test Data (Status: 200)
+✅ PASS: Update Table Description (Status: 200)
+✅ PASS: Delete Test Table (Status: 200)
+
+============================================================
+Testing: Comprehensive Storage Operations
+============================================================
+✅ PASS: List Storage Buckets (Status: 200)
+✅ PASS: Create Bucket (Status: 201)
+✅ PASS: Get Bucket Details (Status: 200)
+✅ PASS: List Bucket Files (Status: 200)
+✅ PASS: Initiate File Upload (Status: 201)
+✅ PASS: Upload File to Storage (Status: 201)
+✅ PASS: Get File Download Info (Status: 200)
+✅ PASS: Update Bucket (Status: 200)
+✅ PASS: Full Integration Suite
+
+================================================================================
+🏁 Swift SDK Integration Testing Complete!
+================================================================================
+
+📊 TEST SUMMARY
+================================================================================
+Total Tests: 25
+Passed: 25 ✅
+Failed: 0 ❌
+Success Rate: 100.0%
+
+
+✅ PASSED TESTS:
+  - Configuration Creation
+  - Client Initialization
+  - Registration Request Structure
+  - Login Request Structure
+  - User Registration
+  - User Login
+  - Refresh Token
+  - Get Current User
+  - List Tables
+  - Get Table Details
+  - Get Table Data
+  - Create Test Table
+  - Insert Test Data
+  - Update Test Data
+  - Update Table Description
+  - Delete Test Table
+  - List Storage Buckets
+  - Create Bucket
+  - Get Bucket Details
+  - List Bucket Files
+  - Initiate File Upload
+  - Upload File to Storage
+  - Get File Download Info
+  - Update Bucket
+  - Full Integration Suite
+
+📄 Test results saved to: swift_test_results_1749545523.txt
