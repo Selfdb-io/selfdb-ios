@@ -80,4 +80,17 @@ final class AuthenticationTests: XCTestCase {
         client.auth.signOut()
         XCTAssertNil(client.auth.accessToken)
     }
+    
+    func testDeleteAccountWithoutAuthentication() async {
+        let result = await client.auth.deleteAccount()
+        
+        XCTAssertFalse(result.isSuccess)
+        XCTAssertNil(result.data)
+        
+        if case .authenticationRequired = result.error {
+            // Test passes - got the expected error
+        } else {
+            XCTFail("Expected authenticationRequired error, got: \(String(describing: result.error))")
+        }
+    }
 }

@@ -196,6 +196,70 @@ final class AuthenticationIntegrationTests: XCTestCase {
         XCTAssertTrue(registrationSuccess, "Registration should succeed")
     }
     
+    func testDeleteAccount() async {
+        logger.logTestHeader("Delete Account Integration Test")
+        
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let testEmail = "\(IntegrationTestConfig.testEmailBase)_delete_\(timestamp)@example.com"
+        
+        // First register a user
+        let registerResult = await client.auth.register(
+            email: testEmail,
+            password: IntegrationTestConfig.testPassword
+        )
+        
+        guard registerResult.isSuccess else {
+            logger.logTestResult(TestResult(
+                testName: "testDeleteAccount",
+                description: "User Registration for Delete Test",
+                success: false,
+                statusCode: registerResult.statusCode,
+                error: registerResult.error?.localizedDescription
+            ))
+            XCTFail("Registration failed")
+            return
+        }
+        
+        // Login to get authentication token
+        let loginResult = await client.auth.login(
+            email: testEmail,
+            password: IntegrationTestConfig.testPassword
+        )
+        
+        guard loginResult.isSuccess else {
+            logger.logTestResult(TestResult(
+                testName: "testDeleteAccount",
+                description: "User Login for Delete Test",
+                success: false,
+                statusCode: loginResult.statusCode,
+                error: loginResult.error?.localizedDescription
+            ))
+            XCTFail("Login failed")
+            return
+        }
+        
+        // Verify we have a token
+        XCTAssertNotNil(client.auth.accessToken)
+        
+        // Test account deletion
+        let deleteResult = await client.auth.deleteAccount()
+        
+        let deleteSuccess = deleteResult.isSuccess && deleteResult.data == true
+        
+        logger.logTestResult(TestResult(
+            testName: "testDeleteAccount",
+            description: "Account Deletion",
+            success: deleteSuccess,
+            statusCode: deleteResult.statusCode,
+            error: deleteResult.error?.localizedDescription
+        ))
+        
+        XCTAssertTrue(deleteSuccess, "Account deletion should succeed")
+        
+        // Verify user is signed out after deletion
+        XCTAssertNil(client.auth.accessToken, "User should be signed out after account deletion")
+    }
+    
     func testAllAuthentication() async {
         await testRealAuthentication()
     }

@@ -188,6 +188,30 @@ public class AuthClient {
         )
     }
     
+    /// Delete current user's account
+    /// - Returns: Boolean indicating success
+    @discardableResult
+    public func deleteAccount() async -> SelfDBResponse<Bool> {
+        guard let token = currentToken else {
+            return SelfDBResponse(data: nil, error: .authenticationRequired, statusCode: 0)
+        }
+        
+        let headers = ["Authorization": "Bearer \(token)"]
+        let response = await httpClient.request(
+            endpoint: "/me",
+            method: .DELETE,
+            headers: headers,
+            responseType: Bool.self
+        )
+        
+        // If account deletion was successful, sign out the user
+        if let success = response.data, success {
+            signOut()
+        }
+        
+        return response
+    }
+    
     /// Sign out current user
     public func signOut() {
         currentToken = nil
