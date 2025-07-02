@@ -198,7 +198,7 @@ public class AuthClient {
         
         let headers = ["Authorization": "Bearer \(token)"]
         let response = await httpClient.request(
-            endpoint: "/me",
+            endpoint: "/users/me",
             method: .DELETE,
             headers: headers,
             responseType: Bool.self
